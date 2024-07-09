@@ -1,4 +1,4 @@
-use crate::io::{error, write_error_kind, Error, ErrorKind, Result, Write, WriteResult};
+use crate::io::{error, write_error_kind, ErrorKind, Write, WriteResult};
 
 use super::{range_enc::RangeEncoder, CountingWriter, LZMA2Options};
 
@@ -62,7 +62,7 @@ impl<W: Write> LZMAWriter<W> {
 
         let props = options.get_props();
         if use_header {
-            out.write_all(&[props as u8])?;
+            out.write_all(&[props])?;
             let mut dict_size = options.dict_size;
             for _i in 0..4 {
                 out.write_all(&[(dict_size & 0xFF) as u8])?;
@@ -150,7 +150,7 @@ impl<W: Write> Write for LZMAWriter<W> {
                 "Already finished"
             );
         }
-        if buf.len() == 0 {
+        if buf.is_empty() {
             self.finish()?;
             self.rc.inner().write(buf)?;
             return Ok(0);

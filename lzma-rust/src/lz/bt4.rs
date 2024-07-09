@@ -113,7 +113,7 @@ impl BT4 {
                 }
             }
 
-            if (encoder.get_byte(len as _, delta) & 0xFF) < (encoder.get_byte(len as _, 0) & 0xFF) {
+            if encoder.get_byte(len as _, delta) < encoder.get_byte(len as _, 0) {
                 self.tree[ptr1 as usize] = current_match;
                 ptr1 = pair + 1;
                 current_match = self.tree[ptr1 as usize];
@@ -136,7 +136,7 @@ impl MatchFind for BT4 {
         let mut nice_len_limit = encoder.nice_len as i32;
         let avail = self.move_pos(encoder);
 
-        if avail < match_len_limit as i32 {
+        if avail < match_len_limit {
             if avail == 0 {
                 return;
             }
@@ -296,7 +296,7 @@ impl MatchFind for BT4 {
                 nice_len_limit = avail;
             }
 
-            self.hash.calc_hashes(&encoder.buf_mut());
+            self.hash.calc_hashes(encoder.buf_mut());
             let current_match = self.hash.get_hash4_pos();
             self.hash.update_tables(self.lz_pos);
 

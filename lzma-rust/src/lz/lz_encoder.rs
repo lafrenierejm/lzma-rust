@@ -1,4 +1,4 @@
-use crate::io::{Result, Write, WriteResult};
+use crate::io::{Write, WriteResult};
 use core::ops::Deref;
 
 use super::{bt4::BT4, hc4::HC4};
@@ -90,14 +90,14 @@ impl LZEncoder {
         match_len_max: u32,
         mf: MFType,
     ) -> u32 {
-        let m = get_buf_size(
+        
+
+        get_buf_size(
             dict_size,
             extra_size_before,
             extra_size_after,
             match_len_max,
-        ) + mf.get_memory_usage(dict_size);
-
-        m
+        ) + mf.get_memory_usage(dict_size)
     }
 
     pub fn new_hc4(
@@ -177,7 +177,7 @@ impl LZEncoder {
             if *p <= norm_offset {
                 *p = 0;
             } else {
-                *p = *p - norm_offset;
+                *p -= norm_offset;
             }
         }
     }
@@ -240,7 +240,7 @@ impl LZEncoderData {
 
     fn move_window(&mut self) {
         let move_offset = (self.read_pos + 1 - self.keep_size_before as i32) & !15;
-        let move_size = self.write_pos as i32 - move_offset;
+        let move_size = self.write_pos - move_offset;
         assert!(move_size >= 0);
         assert!(move_offset >= 0);
         let move_size = move_size as usize;
@@ -357,13 +357,13 @@ impl LZEncoderData {
         {
             len += 1;
         }
-        return len as _;
+        len as _
     }
 
     fn verify_matches(&self, matches: &Matches) -> bool {
         let len_limit = self.get_avail().min(self.match_len_max as i32);
         for i in 0..matches.count as usize {
-            if self.get_match_len(matches.dist[i] as i32, len_limit) != matches.len[i] as _ {
+            if self.get_match_len(matches.dist[i], len_limit) != matches.len[i] as _ {
                 return false;
             }
         }
@@ -378,11 +378,9 @@ impl LZEncoderData {
         assert!(required_for_flushing >= required_for_finishing);
         self.read_pos += 1;
         let mut avail = self.write_pos - self.read_pos;
-        if avail < required_for_flushing {
-            if avail < required_for_finishing || !self.finishing {
-                self.pending_size += 1;
-                avail = 0;
-            }
+        if avail < required_for_flushing && (avail < required_for_finishing || !self.finishing) {
+            self.pending_size += 1;
+            avail = 0;
         }
         avail
     }

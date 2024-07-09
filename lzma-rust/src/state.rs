@@ -70,7 +70,7 @@ impl State {
     }
 
     pub const fn is_literal(&self) -> bool {
-        return self.state < LIT_STATES;
+        self.state < LIT_STATES
     }
 }
 

@@ -3,7 +3,7 @@ use super::{
     lz::LZDecoder,
     range_dec::{RangeDecoder, RangeDecoderBuffer},
 };
-use crate::io::{error, read_exact_error_kind, Error, ErrorKind, Read, ReadExactResult, Result};
+use crate::io::{error, read_exact_error_kind, Error, ErrorKind, Read, ReadExactResult};
 pub const COMPRESSED_SIZE_MAX: u32 = 1 << 16;
 use crate::range_dec::RangeSource;
 
@@ -42,7 +42,7 @@ pub fn get_memory_usage(dict_size: u32) -> u32 {
 
 #[inline]
 fn get_dict_size(dict_size: u32) -> u32 {
-    dict_size + 15 & !15
+    (dict_size + 15) & !15
 }
 
 impl<R> LZMA2Reader<R> {
@@ -64,7 +64,7 @@ impl<R: Read> LZMA2Reader<R> {
     /// `inner` is the reader to read compressed data from.
     /// `dict_size` is the dictionary size in bytes.
     pub fn new(inner: R, dict_size: u32, preset_dict: Option<&[u8]>) -> Self {
-        let has_preset = preset_dict.as_ref().map(|a| a.len() > 0).unwrap_or(false);
+        let has_preset = preset_dict.as_ref().map(|a| !a.is_empty()).unwrap_or(false);
         let lz = LZDecoder::new(get_dict_size(dict_size) as _, preset_dict);
         let rc = RangeDecoder::new_buffer(COMPRESSED_SIZE_MAX as _);
         Self {
@@ -124,7 +124,7 @@ impl<R: Read> LZMA2Reader<R> {
                     "Corrupted input data (LZMA2:1)"
                 );
             } else if control >= 0xA0 {
-                self.lzma.as_mut().map(|l| l.reset());
+                if let Some(l) = self.lzma.as_mut() { l.reset() }
             }
             self.rc.prepare(&mut self.inner, compressed_size)?;
         } else if control > 0x02 {
@@ -163,7 +163,7 @@ impl<R: Read> LZMA2Reader<R> {
     }
 
     fn read_decode(&mut self, buf: &mut [u8]) -> ReadExactResult<R, usize> {
-        if buf.len() == 0 {
+        if buf.is_empty() {
             return Ok(0);
         }
         if let Some(e) = &self.error {
@@ -214,13 +214,11 @@ impl<R: Read> LZMA2Reader<R> {
                 len -= copied_size;
                 size += copied_size;
                 self.uncompressed_size -= copied_size;
-                if self.uncompressed_size == 0 {
-                    if !self.rc.is_finished() || self.lz.has_pending() {
-                        return error!(
-                            read_exact_error_kind!(R, ErrorKind::InvalidInput),
-                            "rc not finished or lz has pending"
-                        );
-                    }
+                if self.uncompressed_size == 0 && (!self.rc.is_finished() || self.lz.has_pending()) {
+                    return error!(
+                        read_exact_error_kind!(R, ErrorKind::InvalidInput),
+                        "rc not finished or lz has pending"
+                    );
                 }
             }
         }
@@ -256,12 +254,12 @@ impl<R: Read> Read for LZMA2Reader<R> {
                         embedded_io::ReadExactError::Other(e) => e.kind(),
                     };
                     self.error = Some(error);
-                    return Err(unsafe {
+                    Err(unsafe {
                         core::intrinsics::transmute_unchecked::<
                             embedded_io::ErrorKind,
                             <R as embedded_io::ErrorType>::Error,
                         >(error)
-                    });
+                    })
                 }
             }
         }

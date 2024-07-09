@@ -1,4 +1,4 @@
-use crate::io::{error, read_exact_error_kind, Error, ErrorKind, Read, ReadExactResult, Result};
+use crate::io::{error, read_exact_error_kind, ErrorKind, Read, ReadExactResult, Result};
 
 use super::decoder::LZMADecoder;
 use super::lz::LZDecoder;
@@ -21,7 +21,7 @@ pub fn get_memory_usage(dict_size: u32, lc: u32, lp: u32) -> Result<u32> {
     if lc > 8 || lp > 4 {
         return error!(ErrorKind::InvalidInput, "Invalid lc or lp");
     }
-    return Ok(10 + get_dict_size(dict_size)? / 1024 + ((2 * 0x300) << (lc + lp)) / 1024);
+    Ok(10 + get_dict_size(dict_size)? / 1024 + ((2 * 0x300) << (lc + lp)) / 1024)
 }
 
 fn get_dict_size(dict_size: u32) -> Result<u32> {
@@ -246,7 +246,7 @@ impl<R: Read> LZMAReader<R> {
         let mut len = buf.len() as u32;
         let mut off = 0u32;
         while len > 0 {
-            let mut copy_size_max = len as u32;
+            let mut copy_size_max = len;
             if self.remaining_size <= u64::MAX / 2 && (self.remaining_size as u32) < len {
                 copy_size_max = self.remaining_size as u32;
             }
@@ -317,7 +317,7 @@ impl<R: Read> Read for LZMAReader<R> {
                     },
                     embedded_io::ReadExactError::Other(e) => e,
                 };
-                return Err(e);
+                Err(e)
             }
         }
     }

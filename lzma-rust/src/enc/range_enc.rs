@@ -1,4 +1,4 @@
-use crate::io::{Result, Write, WriteResult};
+use crate::io::{Write, WriteResult};
 
 use crate::{BIT_MODEL_TOTAL, BIT_MODEL_TOTAL_BITS, MOVE_BITS, SHIFT_BITS, TOP_MASK};
 
@@ -87,12 +87,12 @@ impl<W: Write> RangeEncoder<W> {
             self.range = bound;
             *prob += ((BIT_MODEL_TOTAL.wrapping_sub(*prob as u32)) >> MOVE_BITS) as u16;
         } else {
-            self.low += (bound & 0xFFFFFFFFu32) as u64;
+            self.low += bound as u64;
             self.range = self.range.wrapping_sub(bound);
             *prob -= (*prob) >> (MOVE_BITS as u16);
         }
         if self.range & TOP_MASK == 0 {
-            self.range = self.range << SHIFT_BITS;
+            self.range <<= SHIFT_BITS;
             self.shift_low()?;
         }
         Ok(())
@@ -107,7 +107,7 @@ impl<W: Write> RangeEncoder<W> {
             self.encode_bit(probs, index, bit)?;
             index <<= 1;
             if bit != 0 {
-                index = index | 1;
+                index |= 1;
             }
             if mask == 1 {
                 break;
@@ -138,13 +138,13 @@ impl<W: Write> RangeEncoder<W> {
 
     pub fn encode_direct_bits(&mut self, value: u32, mut count: u32) -> WriteResult<W, ()> {
         loop {
-            self.range = self.range >> 1;
-            count = count - 1;
+            self.range >>= 1;
+            count -= 1;
             let m = 0u32.wrapping_sub((value >> count) & 1);
             self.low += (self.range & m) as u64;
 
             if self.range & TOP_MASK == 0 {
-                self.range = self.range << SHIFT_BITS;
+                self.range <<= SHIFT_BITS;
                 self.shift_low()?;
             }
             if count == 0 {

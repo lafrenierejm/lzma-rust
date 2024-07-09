@@ -1,5 +1,5 @@
 use crate::io::{
-    error, transmute_result_error_type, write_error_kind, ErrorKind, Result, Write, WriteResult,
+    error, transmute_result_error_type, write_error_kind, ErrorKind, Write, WriteResult,
 };
 
 use super::counting::CountingWriter;
@@ -131,11 +131,11 @@ impl LZMA2Options {
 }
 const COMPRESSED_SIZE_MAX: u32 = 64 << 10;
 pub fn get_extra_size_before(dict_size: u32) -> u32 {
-    return if COMPRESSED_SIZE_MAX > dict_size {
+    if COMPRESSED_SIZE_MAX > dict_size {
         COMPRESSED_SIZE_MAX - dict_size
     } else {
         0
-    };
+    }
 }
 
 /// LZMA2 format writer
@@ -203,14 +203,12 @@ impl<W: Write> LZMA2Writer<W> {
             } else {
                 0x80 + (2 << 5)
             }
+        } else if self.state_reset_needed {
+            0x80 + (1 << 5)
         } else {
-            if self.state_reset_needed {
-                0x80 + (1 << 5)
-            } else {
-                0x80
-            }
+            0x80
         };
-        control = control | (uncompressed_size - 1) >> 16;
+        control |= (uncompressed_size - 1) >> 16;
         let mut chunk_header = [0u8; 6];
         chunk_header[0] = control as u8;
         chunk_header[1] = ((uncompressed_size - 1) >> 8) as u8;
@@ -218,7 +216,7 @@ impl<W: Write> LZMA2Writer<W> {
         chunk_header[3] = ((compressed_size - 1) >> 8) as u8;
         chunk_header[4] = (compressed_size - 1) as u8;
         if self.props_needed {
-            chunk_header[5] = self.props as u8;
+            chunk_header[5] = self.props;
             self.inner.write_all(&chunk_header)?;
         } else {
             self.inner.write_all(&chunk_header[..5])?;
@@ -233,7 +231,7 @@ impl<W: Write> LZMA2Writer<W> {
 
     fn write_uncompressed(&mut self, mut uncompressed_size: u32) -> WriteResult<W, ()> {
         while uncompressed_size > 0 {
-            let chunk_size = uncompressed_size.min(COMPRESSED_SIZE_MAX as u32);
+            let chunk_size = uncompressed_size.min(COMPRESSED_SIZE_MAX);
             let mut chunk_header = [0u8; 3];
             chunk_header[0] = if self.dict_reset_needed { 0x01 } else { 0x02 };
             chunk_header[1] = ((chunk_size - 1) >> 8) as u8;
@@ -296,7 +294,7 @@ impl<W: Write> LZMA2Writer<W> {
             self.write_chunk()?;
         }
 
-        self.inner.write_all(&[0x00 as u8])?;
+        self.inner.write_all(&[0x00_u8])?;
         self.finished = true;
 
         Ok(())

@@ -126,8 +126,8 @@ impl<R: RangeSource> RangeDecoder<R> {
             *prob += (BIT_MODEL_TOTAL as u16 - *prob) >> (MOVE_BITS as u16);
             Ok(0)
         } else {
-            self.range = self.range - (bound);
-            self.code = self.code - (bound);
+            self.range -= bound;
+            self.code -= bound;
             *prob -= *prob >> (MOVE_BITS as u16);
             Ok(1)
         }
@@ -157,7 +157,7 @@ impl<R: RangeSource> RangeDecoder<R> {
                 break;
             }
         }
-        Ok(result as i32)
+        Ok(result)
     }
 
     pub fn decode_direct_bits(&mut self, count: u32) -> ReadExactResult<R, i32> {
@@ -166,7 +166,7 @@ impl<R: RangeSource> RangeDecoder<R> {
             // }
             // loop {
             self.normalize()?;
-            self.range = self.range >> 1;
+            self.range >>= 1;
             let t = (self.code.wrapping_sub(self.range)) >> 31;
             self.code -= self.range & (t.wrapping_sub(1));
             result = (result << 1) | (1u32.wrapping_sub(t));

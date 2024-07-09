@@ -150,7 +150,7 @@ pub mod io {
 }
 
 pub const DICT_SIZE_MIN: u32 = 4096;
-pub const DICT_SIZE_MAX: u32 = u32::MAX & !(15 as u32);
+pub const DICT_SIZE_MAX: u32 = u32::MAX & !15_u32;
 
 const LOW_SYMBOLS: usize = 1 << 3;
 const MID_SYMBOLS: usize = 1 << 3;

@@ -4,7 +4,7 @@ use super::lz::LZDecoder;
 use super::range_dec::RangeDecoder;
 use super::*;
 
-use crate::io::{error, read_exact_error_kind, ErrorKind, ReadExactResult, Result};
+use crate::io::{error, read_exact_error_kind, ErrorKind, ReadExactResult};
 use core::ops::{Deref, DerefMut};
 
 pub struct LZMADecoder {
@@ -132,7 +132,7 @@ impl LZMADecoder {
                 self.reps[0] |= rc.decode_reverse_bit_tree(probs)?;
             } else {
                 let r0 = rc.decode_direct_bits(limit as u32 - ALIGN_BITS as u32)? << ALIGN_BITS;
-                self.reps[0] = self.reps[0] | r0;
+                self.reps[0] |= r0;
                 self.reps[0] |= rc.decode_reverse_bit_tree(&mut self.dist_align)?;
             }
         }
@@ -247,7 +247,7 @@ impl LiteralSubdecoder {
             let mut bit;
 
             loop {
-                match_byte = match_byte << 1;
+                match_byte <<= 1;
                 match_bit = match_byte & offset;
                 bit = rc
                     .decode_bit(&mut self.coder.probs[(offset + match_bit + symbol) as usize])?

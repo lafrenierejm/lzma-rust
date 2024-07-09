@@ -25,7 +25,7 @@ impl HC4 {
             chain: vec![0; dict_size as usize + 1],
             // matches: Matches::new(nice_len as usize - 1),
             depth_limit: if depth_limit > 0 {
-                depth_limit as i32
+                depth_limit
             } else {
                 4 + nice_len as i32 / 4
             },
@@ -47,7 +47,7 @@ impl HC4 {
             }
 
             self.cyclic_pos += 1;
-            if self.cyclic_pos == self.cyclic_size as i32 {
+            if self.cyclic_pos == self.cyclic_size {
                 self.cyclic_pos = 0;
             }
         }
@@ -96,7 +96,7 @@ impl MatchFind for HC4 {
 
         if delta2 != delta3
             && delta3 < self.cyclic_size
-            && encoder.get_byte(0, delta3 as i32) == encoder.get_current_byte()
+            && encoder.get_byte(0, delta3) == encoder.get_current_byte()
         {
             len_best = 3;
             let count = matches.count as usize;
@@ -128,26 +128,26 @@ impl MatchFind for HC4 {
 
         let mut depth = self.depth_limit;
         loop {
-            let delta = (self.lz_pos - current_match) as i32;
+            let delta = self.lz_pos - current_match;
             if {
                 let tmp = depth;
                 depth -= 1;
                 tmp
             } == 0
-                || delta >= self.cyclic_size as i32
+                || delta >= self.cyclic_size
             {
                 return;
             }
             let i = self.cyclic_pos - delta
                 + if delta > self.cyclic_pos {
-                    self.cyclic_size as i32
+                    self.cyclic_size
                 } else {
                     0
                 };
             current_match = self.chain[i as usize];
 
             if encoder.get_byte(len_best, delta) == encoder.get_byte(len_best, 0)
-                && encoder.get_byte(0, delta as i32) == encoder.get_current_byte()
+                && encoder.get_byte(0, delta) == encoder.get_current_byte()
             {
                 // Calculate the length of the match.
                 let mut len = 0;

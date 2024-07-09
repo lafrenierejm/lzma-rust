@@ -1,6 +1,6 @@
 #[cfg(feature = "no_std")]
 use crate::alloc::rc::Rc;
-use crate::io::{Result, Write};
+use crate::io::Write;
 use core::cell::Cell;
 #[cfg(not(feature = "no_std"))]
 use std::rc::Rc;
