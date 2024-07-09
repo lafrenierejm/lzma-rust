@@ -5,11 +5,24 @@ const HASH2_MASK: u32 = HASH2_SIZE - 1;
 const HASH3_SIZE: u32 = 1 << 16;
 const HASH3_MASK: u32 = HASH3_SIZE - 1;
 
+#[cfg(feature = "alloc")]
 pub struct Hash234 {
     hash4_mask: u32,
-    hash2_table: Vec<i32>,
-    hash3_table: Vec<i32>,
-    hash4_table: Vec<i32>,
+    hash2_table: crate::Vec<i32>,
+    hash3_table: crate::Vec<i32>,
+    hash4_table: crate::Vec<i32>,
+    hash4_size: u32,
+    hash2_value: i32,
+    hash3_value: i32,
+    hash4_value: i32,
+}
+
+#[cfg(not(feature = "alloc"))]
+pub struct Hash234<const HASH4_SIZE: u32> {
+    hash4_mask: u32,
+    hash2_table: [i32; HASH2_SIZE as _],
+    hash3_table: [i32; HASH3_SIZE as _],
+    hash4_table: [i32; HASH4_SIZE as _],
     hash4_size: u32,
     hash2_value: i32,
     hash3_value: i32,

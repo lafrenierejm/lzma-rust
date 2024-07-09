@@ -1,12 +1,12 @@
 use super::{
     encoder::{LZMAEncoder, LZMAEncoderTrait},
-    lz::{LZEncoder, MFType, },
+    lz::{LZEncoder, MFType},
     state::State,
     MATCH_LEN_MAX, MATCH_LEN_MIN, REPS,
 };
 
 pub struct NormalEncoderMode {
-    opts: Vec<Optimum>,
+    opts: crate::Vec<Optimum>,
     opt_cur: usize,
     opt_end: usize,
 }
@@ -15,8 +15,8 @@ impl NormalEncoderMode {
     const OPTS: u32 = 4096;
     pub const EXTRA_SIZE_BEFORE: u32 = Self::OPTS;
     pub const EXTRA_SIZE_AFTER: u32 = Self::OPTS;
-    pub fn get_memery_usage(dict_size: u32, extra_size_before: u32, mf: MFType) -> u32 {
-        LZEncoder::get_memery_usage(
+    pub fn get_memory_usage(dict_size: u32, extra_size_before: u32, mf: MFType) -> u32 {
+        LZEncoder::get_memory_usage(
             dict_size,
             extra_size_before.max(Self::EXTRA_SIZE_BEFORE),
             Self::EXTRA_SIZE_AFTER,
@@ -108,7 +108,7 @@ impl NormalEncoderMode {
             }
 
             unsafe {
-                std::ptr::copy_nonoverlapping(
+                core::ptr::copy_nonoverlapping(
                     self.opts[opt_prev].reps.as_ptr(),
                     self.opts[self.opt_cur].reps.as_mut_ptr(),
                     REPS,
@@ -141,7 +141,7 @@ impl NormalEncoderMode {
             } else {
                 self.opts[self.opt_cur].reps[0] = back - REPS as i32;
                 unsafe {
-                    std::ptr::copy_nonoverlapping(
+                    core::ptr::copy_nonoverlapping(
                         self.opts[opt_prev].reps.as_ptr(),
                         self.opts[self.opt_cur].reps[1..].as_mut_ptr(),
                         REPS - 1,
@@ -552,7 +552,7 @@ impl LZMAEncoderTrait for NormalEncoderMode {
         // state and reps for the next byte.
         self.opts[0].state.set(encoder.state);
         unsafe {
-            std::ptr::copy_nonoverlapping(
+            core::ptr::copy_nonoverlapping(
                 encoder.reps.as_ptr(),
                 self.opts[0].reps.as_mut_ptr(),
                 REPS,
@@ -636,8 +636,7 @@ impl LZMAEncoderTrait for NormalEncoderMode {
             encoder.find_matches();
             let matches = encoder.lz.matches();
             if matches.count > 0
-                && matches.len[matches.count as usize - 1]
-                    >= encoder.data.nice_len as u32
+                && matches.len[matches.count as usize - 1] >= encoder.data.nice_len as u32
             {
                 break;
             }

@@ -1,8 +1,8 @@
-use std::io::{ErrorKind, Read};
+use crate::io::{self, error, ErrorKind, Read, ReadExactResult, Result};
 
 #[derive(Default)]
 pub struct LZDecoder {
-    buf: Vec<u8>,
+    buf: crate::Vec<u8>,
     buf_size: usize,
     start: usize,
     pos: usize,
@@ -76,12 +76,9 @@ impl LZDecoder {
         }
     }
 
-    pub fn repeat(&mut self, dist: usize, len: usize) -> std::io::Result<()> {
+    pub fn repeat(&mut self, dist: usize, len: usize) -> Result<()> {
         if dist >= self.full {
-            return Err(std::io::Error::new(
-                ErrorKind::InvalidInput,
-                "dist overflow",
-            ));
+            return error!(ErrorKind::InvalidInput, "dist overflow");
         }
         let mut left = usize::min(self.limit - self.pos, len);
         self.pending_len = len - left;
@@ -95,14 +92,14 @@ impl LZDecoder {
 
             // Here we will never copy more than dist + 1 bytes and
             // so the copying won't repeat from its own output.
-            // Thus, we can always use std::ptr::copy safely.
+            // Thus, we can always use core::ptr::copy safely.
             let copy_size = usize::min(self.buf_size - back, left);
             assert!(copy_size <= dist + 1);
             unsafe {
                 let buf_ptr = self.buf.as_mut_ptr();
                 let src = buf_ptr.add(back);
                 let dest = buf_ptr.add(self.pos);
-                std::ptr::copy_nonoverlapping(src, dest, copy_size);
+                core::ptr::copy_nonoverlapping(src, dest, copy_size);
             }
             self.pos += copy_size;
             back = 0;
@@ -126,7 +123,7 @@ impl LZDecoder {
                 let buf_ptr = self.buf.as_mut_ptr();
                 let src = buf_ptr.add(back);
                 let dest = buf_ptr.add(pos);
-                std::ptr::copy_nonoverlapping(src, dest, copy_size);
+                core::ptr::copy_nonoverlapping(src, dest, copy_size);
             }
 
             self.pos += copy_size;
@@ -142,7 +139,7 @@ impl LZDecoder {
         Ok(())
     }
 
-    pub fn repeat_pending(&mut self) -> std::io::Result<()> {
+    pub fn repeat_pending(&mut self) -> Result<()> {
         if self.pending_len > 0 {
             self.repeat(self.pending_dist, self.pending_len)?;
         }
@@ -153,7 +150,7 @@ impl LZDecoder {
         &mut self,
         mut in_data: R,
         len: usize,
-    ) -> std::io::Result<()> {
+    ) -> ReadExactResult<R, ()> {
         let copy_size = (self.buf_size - self.pos).min(len);
         let buf = &mut self.buf[self.pos..(self.pos + copy_size)];
         in_data.read_exact(buf)?;

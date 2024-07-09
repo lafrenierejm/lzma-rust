@@ -2,7 +2,7 @@ use super::{hash234::Hash234, LZEncoder, MatchFind, Matches};
 
 pub struct BT4 {
     hash: Hash234,
-    tree: Vec<i32>,
+    tree: crate::Vec<i32>,
     depth_limit: i32,
 
     cyclic_size: i32,
@@ -129,7 +129,7 @@ impl BT4 {
 }
 
 impl MatchFind for BT4 {
-    fn find_matches(&mut self, encoder: &mut super::LZEncoderData,matches: &mut Matches) {
+    fn find_matches(&mut self, encoder: &mut super::LZEncoderData, matches: &mut Matches) {
         matches.count = 0;
 
         let mut match_len_limit = encoder.match_len_max as i32;

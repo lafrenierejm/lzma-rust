@@ -1,5 +1,3 @@
-use std::vec;
-
 use super::{
     hash234::Hash234,
     lz_encoder::{LZEncoder, MatchFind, Matches},
@@ -8,7 +6,7 @@ use super::{
 
 pub struct HC4 {
     hash: Hash234,
-    chain: Vec<i32>,
+    chain: crate::Vec<i32>,
     // matches: Matches,
     depth_limit: i32,
     cyclic_size: i32,
@@ -193,5 +191,4 @@ impl MatchFind for HC4 {
             }
         }
     }
-
 }

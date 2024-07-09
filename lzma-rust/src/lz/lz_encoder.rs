@@ -1,7 +1,5 @@
-use std::{
-    io::{Result, Write},
-    ops::Deref,
-};
+use crate::io::{Result, Write, WriteResult};
+use core::ops::Deref;
 
 use super::{bt4::BT4, hc4::HC4};
 
@@ -42,7 +40,7 @@ impl Default for MFType {
 }
 impl MFType {
     #[inline]
-    fn get_memery_usage(self, dict_size: u32) -> u32 {
+    fn get_memory_usage(self, dict_size: u32) -> u32 {
         match self {
             MFType::HC4 => HC4::get_mem_usage(dict_size),
             MFType::BT4 => BT4::get_mem_usage(dict_size),
@@ -60,7 +58,7 @@ pub struct LZEncoderData {
     pub(crate) keep_size_after: u32,
     pub(crate) match_len_max: u32,
     pub(crate) nice_len: u32,
-    pub(crate) buf: Vec<u8>,
+    pub(crate) buf: crate::Vec<u8>,
     pub(crate) buf_size: u32,
     pub(crate) read_pos: i32,
     pub(crate) read_limit: i32,
@@ -70,8 +68,8 @@ pub struct LZEncoderData {
 }
 
 pub struct Matches {
-    pub len: Vec<u32>,
-    pub dist: Vec<i32>,
+    pub len: crate::Vec<u32>,
+    pub dist: crate::Vec<i32>,
     pub count: u32,
 }
 impl Matches {
@@ -85,7 +83,7 @@ impl Matches {
 }
 
 impl LZEncoder {
-    pub fn get_memery_usage(
+    pub fn get_memory_usage(
         dict_size: u32,
         extra_size_before: u32,
         extra_size_after: u32,
@@ -97,7 +95,7 @@ impl LZEncoder {
             extra_size_before,
             extra_size_after,
             match_len_max,
-        ) + mf.get_memery_usage(dict_size);
+        ) + mf.get_memory_usage(dict_size);
 
         m
     }
@@ -249,7 +247,7 @@ impl LZEncoderData {
         let offset = move_offset as usize;
         let end = offset + move_size;
         unsafe {
-            std::ptr::copy_nonoverlapping(
+            core::ptr::copy_nonoverlapping(
                 self.buf[offset..end].as_ptr(),
                 self.buf[0..].as_mut_ptr(),
                 move_size,
@@ -309,7 +307,7 @@ impl LZEncoderData {
         out: &mut W,
         backward: i32,
         len: usize,
-    ) -> Result<()> {
+    ) -> WriteResult<W, ()> {
         let start = (self.read_pos + 1 - backward) as usize;
         out.write_all(&self.buf[start..(start + len)])
     }

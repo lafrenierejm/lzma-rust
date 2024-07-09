@@ -19,23 +19,23 @@ const NONLIT_MATCH: u8 = 10;
 const NONLIT_REP: u8 = 11;
 
 impl State {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self { state: 0 }
     }
 
-    pub fn reset(&mut self) {
+    pub const fn reset(&mut self) {
         self.state = LIT_LIT;
     }
 
-    pub fn get(&self) -> u8 {
+    pub const fn get(&self) -> u8 {
         self.state
     }
 
-    pub fn set(&mut self, other: State) {
+    pub const fn set(&mut self, other: State) {
         self.state = other.state;
     }
 
-    pub fn update_literal(&mut self) {
+    pub const fn update_literal(&mut self) {
         if self.state <= SHORTREP_LIT_LIT {
             self.state = LIT_LIT;
         } else if self.state <= LIT_SHORTREP {
@@ -45,7 +45,7 @@ impl State {
         }
     }
 
-    pub fn update_match(&mut self) {
+    pub const fn update_match(&mut self) {
         self.state = if self.state < LIT_STATES {
             LIT_MATCH
         } else {
@@ -53,7 +53,7 @@ impl State {
         };
     }
 
-    pub fn update_long_rep(&mut self) {
+    pub const fn update_long_rep(&mut self) {
         self.state = if self.state < LIT_STATES {
             LIT_LONGREP
         } else {
@@ -61,7 +61,7 @@ impl State {
         };
     }
 
-    pub fn update_short_rep(&mut self) {
+    pub const fn update_short_rep(&mut self) {
         self.state = if self.state < LIT_STATES {
             LIT_SHORTREP
         } else {
@@ -69,7 +69,7 @@ impl State {
         };
     }
 
-    pub fn is_literal(&self) -> bool {
+    pub const fn is_literal(&self) -> bool {
         return self.state < LIT_STATES;
     }
 }

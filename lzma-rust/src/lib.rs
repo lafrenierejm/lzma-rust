@@ -1,21 +1,153 @@
-mod decoder;
+#![cfg_attr(feature = "no_std", no_std)]
+#![cfg_attr(
+    all(feature = "no_std", feature = "alloc"),
+    feature(stmt_expr_attributes),
+    feature(core_intrinsics),
+    feature(const_mut_refs),
+    allow(internal_features)
+)]
+#![cfg_attr(
+    not(feature = "alloc"),
+    feature(generic_const_exprs),
+    feature(const_trait_impl),
+    feature(const_mut_refs),
+    feature(const_intrinsic_copy),
+    feature(const_for),
+    allow(incomplete_features),
+    feature(const_slice_from_raw_parts_mut)
+)]
+
+#[cfg_attr(feature = "alloc", path = "./decoder_alloc.rs")]
+#[cfg_attr(not(feature = "alloc"), path = "./decoder_no_alloc.rs")]
+pub mod decoder;
 mod lz;
-mod lzma2_reader;
-mod lzma_reader;
+#[cfg_attr(feature = "alloc", path = "./lzma2_reader_alloc.rs")]
+#[cfg_attr(not(feature = "alloc"), path = "./lzma2_reader_no_alloc.rs")]
+pub mod lzma2_reader;
+#[cfg_attr(feature = "alloc", path = "./lzma_reader_alloc.rs")]
+#[cfg_attr(not(feature = "alloc"), path = "./lzma_reader_no_alloc.rs")]
+pub mod lzma_reader;
+#[cfg_attr(feature = "alloc", path = "./range_dec_alloc.rs")]
+#[cfg_attr(not(feature = "alloc"), path = "./range_dec_no_alloc.rs")]
 mod range_dec;
 mod state;
 
-pub use lzma2_reader::get_memery_usage as lzma2_get_memery_usage;
+#[cfg(all(feature = "no_std", feature = "alloc"))]
+#[macro_use]
+pub extern crate alloc;
+
+pub use lzma2_reader::get_memory_usage as lzma2_get_memory_usage;
 pub use lzma2_reader::LZMA2Reader;
-pub use lzma_reader::get_memery_usage as lzma_get_memery_usage;
-pub use lzma_reader::get_memery_usage_by_props as lzma_get_memery_usage_by_props;
+pub use lzma_reader::get_memory_usage as lzma_get_memory_usage;
+pub use lzma_reader::get_memory_usage_by_props as lzma_get_memory_usage_by_props;
 pub use lzma_reader::LZMAReader;
-#[cfg(feature = "encoder")]
+#[cfg(all(feature = "encoder", feature = "alloc"))]
 mod enc;
-#[cfg(feature = "encoder")]
+#[cfg(all(feature = "encoder", feature = "alloc"))]
 pub use enc::*;
 
 use state::*;
+
+#[cfg(not(feature = "no_std"))]
+pub mod io {
+    pub use std::io::*;
+    //error!(ErrorKind::Other, "no_std feature is not enabled");
+    macro_rules! error {
+        ($kind:expr, $msg:expr) => {
+            Err(Error::new($kind, $msg))
+        };
+    }
+
+    pub type Result<T> = std::io::Result<T>;
+    pub(crate) use error;
+    pub type ReadExactResult<R, O> = std::io::Result<O>;
+    pub type WriteResult<W, O> = std::io::Result<O>;
+
+    macro_rules! read_exact_error_kind {
+        ($reader: ty, $kind:expr) => {
+            $kind
+        };
+    }
+
+    macro_rules! write_error_kind {
+        ($writer: ty, $kind:expr) => {
+            $kind
+        };
+    }
+
+    pub(crate) use read_exact_error_kind;
+    pub(crate) use write_error_kind;
+
+    macro_rules! transmute_result_error_type {
+        ($err: expr, $out: ty, $src: ty, $dst: ty) => {
+            $err
+        };
+    }
+    pub(crate) use transmute_result_error_type;
+}
+#[cfg(not(feature = "no_std"))]
+pub use std::vec::Vec;
+
+#[cfg(all(feature = "no_std", feature = "alloc"))]
+pub use alloc::vec::Vec;
+
+#[cfg(feature = "no_std")]
+pub mod io {
+
+    pub type Result<T> = core::result::Result<T, embedded_io::ErrorKind>;
+    pub use embedded_io::*;
+    macro_rules! error {
+        ($kind:expr, $msg: expr) => {
+            Err($kind)
+        };
+    }
+
+    macro_rules! read_exact_error_kind {
+        ($reader: ty, $kind:expr) => {{
+            let kind = unsafe {
+                core::intrinsics::transmute_unchecked::<
+                    embedded_io::ErrorKind,
+                    <$reader as embedded_io::ErrorType>::Error,
+                >($kind)
+            };
+            embedded_io::ReadExactError::<<$reader as embedded_io::ErrorType>::Error>::Other(kind)
+        }};
+    }
+    pub(crate) use read_exact_error_kind;
+
+    macro_rules! write_error_kind {
+        ($writer: ty, $kind:expr) => {{
+            let kind = unsafe {
+                core::intrinsics::transmute_unchecked::<
+                    embedded_io::ErrorKind,
+                    <$writer as embedded_io::ErrorType>::Error,
+                >($kind)
+            };
+            kind
+        }};
+    }
+
+    pub(crate) use error;
+    pub(crate) use write_error_kind;
+
+    macro_rules! transmute_result_error_type {
+        ($err: expr, $out: ty, $src: ty, $dst: ty) => {
+            unsafe {
+                core::intrinsics::transmute_unchecked::<
+                    core::result::Result<$out, <$src as embedded_io::ErrorType>::Error>,
+                    core::result::Result<$out, <$dst as embedded_io::ErrorType>::Error>,
+                >($err)
+            }
+        };
+    }
+
+    pub(crate) use transmute_result_error_type;
+
+    pub type ReadExactResult<R, O> =
+        core::result::Result<O, embedded_io::ReadExactError<<R as embedded_io::ErrorType>::Error>>;
+
+    pub type WriteResult<W, O> = core::result::Result<O, <W as embedded_io::ErrorType>::Error>;
+}
 
 pub const DICT_SIZE_MIN: u32 = 4096;
 pub const DICT_SIZE_MAX: u32 = u32::MAX & !(15 as u32);
@@ -26,21 +158,25 @@ const HIGH_SYMBOLS: usize = 1 << 8;
 
 const POS_STATES_MAX: usize = 1 << 4;
 const MATCH_LEN_MIN: usize = 2;
+#[cfg(feature = "alloc")]
 const MATCH_LEN_MAX: usize = MATCH_LEN_MIN + LOW_SYMBOLS + MID_SYMBOLS + HIGH_SYMBOLS - 1;
 
 const DIST_STATES: usize = 4;
 const DIST_SLOTS: usize = 1 << 6;
 const DIST_MODEL_START: usize = 4;
 const DIST_MODEL_END: usize = 14;
+#[cfg(feature = "alloc")]
 const FULL_DISTANCES: usize = 1 << (DIST_MODEL_END / 2);
 
 const ALIGN_BITS: usize = 4;
 const ALIGN_SIZE: usize = 1 << ALIGN_BITS;
+#[cfg(feature = "alloc")]
 const ALIGN_MASK: usize = ALIGN_SIZE - 1;
 
 const REPS: usize = 4;
 
 const SHIFT_BITS: u32 = 8;
+#[cfg(feature = "alloc")]
 const TOP_MASK: u32 = 0xFF000000;
 const BIT_MODEL_TOTAL_BITS: u32 = 11;
 const BIT_MODEL_TOTAL: u32 = 1 << BIT_MODEL_TOTAL_BITS;
@@ -48,6 +184,8 @@ const PROB_INIT: u16 = (BIT_MODEL_TOTAL / 2) as u16;
 const MOVE_BITS: u32 = 5;
 const DIST_SPECIAL_INDEX: [usize; 10] = [0, 2, 4, 8, 12, 20, 28, 44, 60, 92];
 const DIST_SPECIAL_END: [usize; 10] = [2, 4, 8, 12, 20, 28, 44, 60, 92, 124];
+
+#[cfg(feature = "alloc")]
 pub struct LZMACoder {
     pub(crate) pos_mask: u32,
     pub(crate) reps: [i32; REPS],
@@ -63,20 +201,50 @@ pub struct LZMACoder {
     dist_align: [u16; ALIGN_SIZE],
 }
 
-pub(crate) fn coder_get_dict_size(len: usize) -> usize {
+/// SAFETY: std version of this function ensures that dst and src are the same length
+/// and that they do not overlap. This function does not check for that, due to inability to panic!
+/// in const fn. It is up to the caller to ensure that the conditions are met.
+/// However, a compile-time error should be raised if the conditions are not met, as the fn is
+/// const.
+#[cfg(not(feature = "alloc"))]
+pub const fn copy_from_slice<T: Copy>(dst: &mut [T], src: &[T]) {
+    unsafe {
+        core::ptr::copy_nonoverlapping(src.as_ptr(), dst.as_mut_ptr(), src.len());
+    }
+}
+
+#[cfg(not(feature = "alloc"))]
+pub struct LZMACoder<const PB: u32> {
+    pub(crate) reps: [i32; REPS],
+    pub(crate) state: State,
+    pub(crate) is_match: [[u16; POS_STATES_MAX]; state::STATES],
+    pub(crate) is_rep: [u16; state::STATES],
+    pub(crate) is_rep0: [u16; state::STATES],
+    pub(crate) is_rep1: [u16; state::STATES],
+    pub(crate) is_rep2: [u16; state::STATES],
+    pub(crate) is_rep0_long: [[u16; POS_STATES_MAX]; state::STATES],
+    pub(crate) dist_slots: [[u16; DIST_SLOTS]; DIST_STATES],
+    dist_special: [u16; 124],
+    dist_align: [u16; ALIGN_SIZE],
+}
+
+pub(crate) const fn coder_get_dict_size(len: usize) -> usize {
     if len < DIST_STATES + MATCH_LEN_MIN {
         len - MATCH_LEN_MIN
     } else {
         DIST_STATES - 1
     }
 }
-pub(crate) fn get_dist_state(len: u32) -> u32 {
+#[cfg(feature = "alloc")]
+pub(crate) const fn get_dist_state(len: u32) -> u32 {
     (if (len as usize) < DIST_STATES + MATCH_LEN_MIN {
         len as usize - MATCH_LEN_MIN
     } else {
         DIST_STATES - 1
     }) as u32
 }
+
+#[cfg(feature = "alloc")]
 impl LZMACoder {
     pub fn new(pb: usize) -> Self {
         let mut c = Self {
@@ -124,15 +292,88 @@ impl LZMACoder {
     }
 }
 
-#[inline(always)]
-pub(crate) fn init_probs(probs: &mut [u16]) {
-    probs.fill(PROB_INIT);
+#[cfg(not(feature = "alloc"))]
+impl<const PB: u32> LZMACoder<PB> {
+    const POS_MASK: u32 = (1 << PB) - 1;
+    pub const fn new() -> Self {
+        let mut c = Self {
+            reps: [0i32; REPS],
+            state: State::new(),
+            is_match: [[0u16; POS_STATES_MAX]; state::STATES],
+            is_rep: [0u16; state::STATES],
+            is_rep0: [0u16; state::STATES],
+            is_rep1: [0u16; state::STATES],
+            is_rep2: [0u16; state::STATES],
+            is_rep0_long: [[0u16; POS_STATES_MAX]; state::STATES],
+            dist_slots: [[0u16; DIST_SLOTS]; DIST_STATES],
+            dist_special: [0u16; 124],
+            dist_align: [0u16; ALIGN_SIZE],
+        };
+        c.reset();
+        c
+    }
+
+    pub const fn reset(&mut self) {
+        self.reps = [0; REPS];
+        self.state.reset();
+        self.is_match = [[PROB_INIT; POS_STATES_MAX]; state::STATES];
+
+        init_probs(&mut self.is_rep);
+        init_probs(&mut self.is_rep0);
+        init_probs(&mut self.is_rep1);
+        init_probs(&mut self.is_rep2);
+
+        self.is_rep0_long = [[PROB_INIT; POS_STATES_MAX]; state::STATES];
+        self.dist_slots = [[PROB_INIT; DIST_SLOTS]; DIST_STATES];
+        self.dist_special = [PROB_INIT; 124];
+        self.dist_align = [PROB_INIT; ALIGN_SIZE];
+    }
+
+    #[inline(always)]
+    pub const fn get_dist_special(&mut self, i: usize) -> &mut [u16] {
+        let start = DIST_SPECIAL_INDEX[i];
+        let end = DIST_SPECIAL_END[i];
+        let len = end - start;
+
+        let mut arr = [0u16; 32]; //32 is the max length of the array
+        let out_buf = unsafe {
+            let arr_ptr = arr.as_mut_ptr();
+            let out = core::slice::from_raw_parts_mut(arr_ptr, len);
+            out
+        };
+
+        let in_arr = unsafe {
+            let ptr = self.dist_special.as_ptr().add(start);
+            core::slice::from_raw_parts(ptr, len)
+        };
+
+        copy_from_slice(out_buf, in_arr);
+        out_buf
+    }
 }
 
+#[inline(always)]
+#[cfg(feature = "alloc")]
+pub(crate) fn init_probs(probs: &mut [u16]) {
+    for prob in probs.iter_mut() {
+        *prob = PROB_INIT;
+    }
+}
+
+#[inline(always)]
+#[cfg(not(feature = "alloc"))]
+pub(crate) const fn init_probs<const N: usize>(probs: &mut [u16; N]) {
+    *probs = [PROB_INIT; N];
+}
+
+#[cfg(feature = "alloc")]
 pub(crate) struct LiteralCoder {
     lc: u32,
     literal_pos_mask: u32,
 }
+
+#[cfg(not(feature = "alloc"))]
+pub(crate) struct LiteralCoder<const LC: u32, const LP: u32>;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct LiteralSubcoder {
@@ -140,16 +381,19 @@ pub(crate) struct LiteralSubcoder {
 }
 
 impl LiteralSubcoder {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         let probs = [PROB_INIT; 0x300];
         // init_probs(&mut probs);
         Self { probs }
     }
-    pub fn reset(&mut self) {
+
+    #[cfg(feature = "alloc")]
+    pub const fn reset(&mut self) {
         self.probs = [PROB_INIT; 0x300];
     }
 }
 
+#[cfg(feature = "alloc")]
 impl LiteralCoder {
     pub fn new(lc: u32, lp: u32) -> Self {
         Self {
@@ -164,6 +408,20 @@ impl LiteralCoder {
     }
 }
 
+#[cfg(not(feature = "alloc"))]
+impl<const LC: u32, const LP: u32> LiteralCoder<LC, LP> {
+    const LITERAL_POS_MASK: u32 = (1 << LP) - 1;
+    const LC_INNER: u32 = LC;
+    pub const fn new() -> Self {
+        Self
+    }
+    pub(crate) fn get_sub_coder_index(&self, prev_byte: u32, pos: u32) -> u32 {
+        let low = prev_byte >> (8 - Self::LC_INNER);
+        let high = (pos & Self::LITERAL_POS_MASK) << Self::LC_INNER;
+        low + high
+    }
+}
+
 pub(crate) struct LengthCoder {
     choice: [u16; 2],
     low: [[u16; LOW_SYMBOLS]; POS_STATES_MAX],
@@ -172,23 +430,19 @@ pub(crate) struct LengthCoder {
 }
 
 impl LengthCoder {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
-            choice: Default::default(),
-            low: Default::default(),
-            mid: Default::default(),
-            high: [0; HIGH_SYMBOLS],
+            choice: [0u16; 2],
+            low: [[0u16; LOW_SYMBOLS]; POS_STATES_MAX],
+            mid: [[0u16; MID_SYMBOLS]; POS_STATES_MAX],
+            high: [0u16; HIGH_SYMBOLS],
         }
     }
 
-    pub fn reset(&mut self) {
-        init_probs(&mut self.choice);
-        for ele in self.low.iter_mut() {
-            init_probs(ele);
-        }
-        for ele in self.mid.iter_mut() {
-            init_probs(ele);
-        }
-        init_probs(&mut self.high);
+    pub const fn reset(&mut self) {
+        self.choice = [PROB_INIT; 2];
+        self.low = [[PROB_INIT; LOW_SYMBOLS]; POS_STATES_MAX];
+        self.mid = [[PROB_INIT; MID_SYMBOLS]; POS_STATES_MAX];
+        self.high = [PROB_INIT; HIGH_SYMBOLS];
     }
 }

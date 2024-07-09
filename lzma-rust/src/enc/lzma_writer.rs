@@ -1,10 +1,9 @@
-use std::io::Write;
-
-use byteorder::WriteBytesExt;
+use crate::io::{error, write_error_kind, Error, ErrorKind, Result, Write, WriteResult};
 
 use super::{range_enc::RangeEncoder, CountingWriter, LZMA2Options};
 
 use super::encoder::{LZMAEncoder, LZMAEncoderModes};
+
 /// Compresses into the legacy .lzma file format or into a raw LZMA stream
 ///
 /// # Examples
@@ -12,7 +11,7 @@ use super::encoder::{LZMAEncoder, LZMAEncoderModes};
 /// use std::io::Write;
 /// use lzma_rust::{LZMA2Options, LZMAWriter};
 /// let s = b"Hello, world!";
-/// let mut out = Vec::new();
+/// let mut out = crate::Vec::new();
 /// let mut options = LZMA2Options::with_preset(6);
 /// options.dict_size = LZMA2Options::DICT_SIZE_DEFAULT;
 
@@ -40,7 +39,7 @@ impl<W: Write> LZMAWriter<W> {
         use_header: bool,
         use_end_marker: bool,
         expected_uncompressed_size: Option<u64>,
-    ) -> Result<LZMAWriter<W>, std::io::Error> {
+    ) -> WriteResult<CountingWriter<W>, LZMAWriter<W>> {
         let (mut lzma, mode) = LZMAEncoder::new(
             options.mode,
             options.lc,
@@ -53,25 +52,25 @@ impl<W: Write> LZMAWriter<W> {
         );
         if let Some(preset_dict) = &options.preset_dict {
             if use_header {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::Unsupported,
-                    "Header is not supported with preset dict",
-                ));
+                return error!(
+                    write_error_kind!(CountingWriter<W>, ErrorKind::Unsupported),
+                    "Header is not supported with preset dict"
+                );
             }
             lzma.lz.set_preset_dict(options.dict_size, preset_dict);
         }
 
         let props = options.get_props();
         if use_header {
-            out.write_u8(props as _)?;
+            out.write_all(&[props as u8])?;
             let mut dict_size = options.dict_size;
             for _i in 0..4 {
-                out.write_u8((dict_size & 0xFF) as u8)?;
+                out.write_all(&[(dict_size & 0xFF) as u8])?;
                 dict_size >>= 8;
             }
             let expected_compressed_size = expected_uncompressed_size.unwrap_or(u64::MAX);
             for i in 0..8 {
-                out.write_u8(((expected_compressed_size >> (i * 8)) & 0xFF) as u8)?;
+                out.write_all(&[((expected_compressed_size >> (i * 8)) & 0xFF) as u8])?;
             }
         }
 
@@ -93,7 +92,7 @@ impl<W: Write> LZMAWriter<W> {
         out: CountingWriter<W>,
         options: &LZMA2Options,
         input_size: Option<u64>,
-    ) -> Result<Self, std::io::Error> {
+    ) -> WriteResult<CountingWriter<W>, Self> {
         Self::new(out, options, true, input_size.is_none(), input_size)
     }
 
@@ -102,7 +101,7 @@ impl<W: Write> LZMAWriter<W> {
         out: CountingWriter<W>,
         options: &LZMA2Options,
         use_end_marker: bool,
-    ) -> Result<Self, std::io::Error> {
+    ) -> WriteResult<CountingWriter<W>, Self> {
         Self::new(out, options, false, use_end_marker, None)
     }
 
@@ -116,14 +115,14 @@ impl<W: Write> LZMAWriter<W> {
         self.current_uncompressed_size
     }
 
-    pub fn finish(&mut self) -> std::io::Result<()> {
+    pub fn finish(&mut self) -> WriteResult<CountingWriter<W>, ()> {
         if !self.finished {
             if let Some(exp) = self.expected_uncompressed_size {
                 if exp != self.current_uncompressed_size {
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::InvalidInput,
-                        "Expected compressed size does not match actual compressed size",
-                    ));
+                    return error!(
+                        write_error_kind!(CountingWriter<W>, ErrorKind::InvalidInput),
+                        "Expected compressed size does not match actual compressed size"
+                    );
                 }
             }
             self.lzma.lz.set_finishing();
@@ -138,13 +137,18 @@ impl<W: Write> LZMAWriter<W> {
     }
 }
 
+#[cfg(feature = "no_std")]
+impl<W: Write> embedded_io::ErrorType for LZMAWriter<W> {
+    type Error = <W as embedded_io::ErrorType>::Error;
+}
+
 impl<W: Write> Write for LZMAWriter<W> {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+    fn write(&mut self, buf: &[u8]) -> WriteResult<W, usize> {
         if self.finished {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Already finished",
-            ));
+            return error!(
+                write_error_kind!(W, ErrorKind::InvalidInput),
+                "Already finished"
+            );
         }
         if buf.len() == 0 {
             self.finish()?;
@@ -153,10 +157,10 @@ impl<W: Write> Write for LZMAWriter<W> {
         }
         if let Some(exp) = self.expected_uncompressed_size {
             if exp < self.current_uncompressed_size + buf.len() as u64 {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::InvalidInput,
-                    "Expected compressed size does not match actual compressed size",
-                ));
+                return error!(
+                    write_error_kind!(W, ErrorKind::InvalidInput),
+                    "Expected compressed size does not match actual compressed size"
+                );
             }
         }
         self.current_uncompressed_size += buf.len() as u64;
@@ -172,7 +176,7 @@ impl<W: Write> Write for LZMAWriter<W> {
         Ok(off)
     }
 
-    fn flush(&mut self) -> std::io::Result<()> {
+    fn flush(&mut self) -> WriteResult<W, ()> {
         Ok(())
     }
 }

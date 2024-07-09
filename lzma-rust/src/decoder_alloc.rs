@@ -4,10 +4,8 @@ use super::lz::LZDecoder;
 use super::range_dec::RangeDecoder;
 use super::*;
 
-use std::{
-    io::Result,
-    ops::{Deref, DerefMut},
-};
+use crate::io::{error, read_exact_error_kind, ErrorKind, ReadExactResult, Result};
+use core::ops::{Deref, DerefMut};
 
 pub struct LZMADecoder {
     coder: LZMACoder,
@@ -62,8 +60,23 @@ impl LZMADecoder {
         self.reps[0] == -1
     }
 
-    pub fn decode<R: RangeSource>(&mut self, lz: &mut LZDecoder, rc: &mut RangeDecoder<R>) -> Result<()> {
-        lz.repeat_pending()?;
+    pub fn decode<R: RangeSource>(
+        &mut self,
+        lz: &mut LZDecoder,
+        rc: &mut RangeDecoder<R>,
+    ) -> ReadExactResult<R, ()> {
+        match lz.repeat_pending() {
+            Ok(_) => {}
+            Err(e) => {
+                #[cfg(feature = "no_std")]
+                return error!(read_exact_error_kind!(R, ErrorKind::InvalidData), "");
+                #[cfg(not(feature = "no_std"))]
+                return error!(
+                    read_exact_error_kind!(R, ErrorKind::InvalidData),
+                    e.to_string()
+                );
+            }
+        }
         while lz.has_space() {
             let pos_state = lz.get_pos() as u32 & self.pos_mask;
             let i = self.state.get() as usize;
@@ -78,14 +91,29 @@ impl LZMADecoder {
                 } else {
                     self.decode_rep_match(pos_state, rc)?
                 };
-                lz.repeat(self.reps[0] as _, len as _)?;
+                match lz.repeat(self.reps[0] as _, len as _) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        #[cfg(feature = "no_std")]
+                        return error!(read_exact_error_kind!(R, ErrorKind::InvalidData), "");
+                        #[cfg(not(feature = "no_std"))]
+                        return error!(
+                            read_exact_error_kind!(R, ErrorKind::InvalidData),
+                            e.to_string()
+                        );
+                    }
+                }
             }
         }
         rc.normalize()?;
         Ok(())
     }
 
-    fn decode_match<R: RangeSource>(&mut self, pos_state: u32, rc: &mut RangeDecoder<R>) -> Result<u32> {
+    fn decode_match<R: RangeSource>(
+        &mut self,
+        pos_state: u32,
+        rc: &mut RangeDecoder<R>,
+    ) -> ReadExactResult<R, u32> {
         self.state.update_match();
         self.reps[3] = self.reps[2];
         self.reps[2] = self.reps[1];
@@ -116,7 +144,7 @@ impl LZMADecoder {
         &mut self,
         pos_state: u32,
         rc: &mut RangeDecoder<R>,
-    ) -> Result<u32> {
+    ) -> ReadExactResult<R, u32> {
         let index = self.state.get() as usize;
         if rc.decode_bit(&mut self.is_rep0[index])? == 0 {
             let index: usize = self.state.get() as usize;
@@ -150,7 +178,7 @@ impl LZMADecoder {
 }
 pub struct LiteralDecoder {
     coder: LiteralCoder,
-    sub_decoders: Vec<LiteralSubdecoder>,
+    sub_decoders: crate::Vec<LiteralSubdecoder>,
 }
 
 impl LiteralDecoder {
@@ -175,7 +203,7 @@ impl LiteralDecoder {
         coder: &mut LZMACoder,
         lz: &mut LZDecoder,
         rc: &mut RangeDecoder<R>,
-    ) -> Result<()> {
+    ) -> ReadExactResult<R, ()> {
         let i = self
             .coder
             .get_sub_coder_index(lz.get_byte(0) as _, lz.get_pos() as _);
@@ -200,7 +228,7 @@ impl LiteralSubdecoder {
         coder: &mut LZMACoder,
         lz: &mut LZDecoder,
         rc: &mut RangeDecoder<R>,
-    ) -> Result<()> {
+    ) -> ReadExactResult<R, ()> {
         let mut symbol: u32 = 1;
         let liter = coder.state.is_literal();
         if liter {
@@ -238,7 +266,11 @@ impl LiteralSubdecoder {
 }
 
 impl LengthCoder {
-    fn decode<R: RangeSource>(&mut self, pos_state: usize, rc: &mut RangeDecoder<R>) -> Result<i32> {
+    fn decode<R: RangeSource>(
+        &mut self,
+        pos_state: usize,
+        rc: &mut RangeDecoder<R>,
+    ) -> ReadExactResult<R, i32> {
         if rc.decode_bit(&mut self.choice[0])? == 0 {
             return Ok(rc
                 .decode_bit_tree(&mut self.low[pos_state])?

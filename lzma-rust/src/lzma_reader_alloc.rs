@@ -1,34 +1,32 @@
-use std::io::{Error, ErrorKind, Read, Result};
-
-use byteorder::{LittleEndian, ReadBytesExt};
+use crate::io::{error, read_exact_error_kind, Error, ErrorKind, Read, ReadExactResult, Result};
 
 use super::decoder::LZMADecoder;
 use super::lz::LZDecoder;
 use super::range_dec::RangeDecoder;
 use super::*;
 
-pub fn get_memery_usage_by_props(dict_size: u32, props_byte: u8) -> Result<u32> {
+pub fn get_memory_usage_by_props(dict_size: u32, props_byte: u8) -> Result<u32> {
     if dict_size > DICT_SIZE_MAX {
-        return Err(Error::new(ErrorKind::InvalidInput, "dict size too large"));
+        return error!(ErrorKind::InvalidInput, "dict size too large");
     }
     if props_byte > (4 * 5 + 4) * 9 + 8 {
-        return Err(Error::new(ErrorKind::InvalidInput, "Invalid props byte"));
+        return error!(ErrorKind::InvalidInput, "Invalid props byte");
     }
     let props = props_byte % (9 * 5);
     let lp = props / 9;
     let lc = props - lp * 9;
-    get_memery_usage(dict_size, lc as u32, lp as u32)
+    get_memory_usage(dict_size, lc as u32, lp as u32)
 }
-pub fn get_memery_usage(dict_size: u32, lc: u32, lp: u32) -> Result<u32> {
+pub fn get_memory_usage(dict_size: u32, lc: u32, lp: u32) -> Result<u32> {
     if lc > 8 || lp > 4 {
-        return Err(Error::new(ErrorKind::InvalidInput, "Invalid lc or lp"));
+        return error!(ErrorKind::InvalidInput, "Invalid lc or lp");
     }
     return Ok(10 + get_dict_size(dict_size)? / 1024 + ((2 * 0x300) << (lc + lp)) / 1024);
 }
 
 fn get_dict_size(dict_size: u32) -> Result<u32> {
     if dict_size > DICT_SIZE_MAX {
-        return Err(Error::new(ErrorKind::InvalidInput, "dict size too large"));
+        return error!(ErrorKind::InvalidInput, "dict size too large");
     }
     let dict_size = dict_size.max(4096);
     Ok((dict_size + 15) & !15)
@@ -41,7 +39,7 @@ fn get_dict_size(dict_size: u32) -> Result<u32> {
 /// let compressed = [93, 0, 0, 128, 0, 255, 255, 255, 255, 255, 255, 255, 255, 0, 36, 25, 73, 152, 111, 22, 2, 140, 232, 230, 91, 177, 71, 198, 206, 183, 99, 255, 255, 60, 172, 0, 0];
 /// let mut reader = LZMAReader::new(&compressed[..]).unwrap();
 /// let mut buf = [0; 1024];
-/// let mut out = Vec::new();
+/// let mut out = crate::Vec::new();
 /// loop {
 ///    let n = reader.read(&mut buf).unwrap();
 ///   if n == 0 {
@@ -66,6 +64,30 @@ impl<R> Drop for LZMAReader<R> {
     }
 }
 
+pub fn read_u8<R: Read>(reader: &mut R) -> ReadExactResult<R, u8> {
+    let mut buf = [0; 1];
+    reader.read_exact(&mut buf)?;
+    Ok(buf[0])
+}
+
+pub fn read_u16_be<R: Read>(reader: &mut R) -> ReadExactResult<R, u16> {
+    let mut buf = [0; 2];
+    reader.read_exact(&mut buf)?;
+    Ok(u16::from_be_bytes(buf))
+}
+
+pub fn read_u32_le<R: Read>(reader: &mut R) -> ReadExactResult<R, u32> {
+    let mut buf = [0; 4];
+    reader.read_exact(&mut buf)?;
+    Ok(u32::from_le_bytes(buf))
+}
+
+pub fn read_u64_le<R: Read>(reader: &mut R) -> ReadExactResult<R, u64> {
+    let mut buf = [0; 8];
+    reader.read_exact(&mut buf)?;
+    Ok(u64::from_le_bytes(buf))
+}
+
 impl<R: Read> LZMAReader<R> {
     fn construct1(
         reader: R,
@@ -75,14 +97,14 @@ impl<R: Read> LZMAReader<R> {
         preset_dict: Option<&[u8]>,
     ) -> Result<Self> {
         if props > (4 * 5 + 4) * 9 + 8 {
-            return Err(Error::new(ErrorKind::InvalidInput, "Invalid props byte"));
+            return error!(ErrorKind::InvalidInput, "Invalid props byte");
         }
         let pb = props / (9 * 5);
         props -= pb * 9 * 5;
         let lp = props / 9;
         let lc = props - lp * 9;
         if dict_size > DICT_SIZE_MAX {
-            return Err(Error::new(ErrorKind::InvalidInput, "dict size too large"));
+            return error!(ErrorKind::InvalidInput, "dict size too large");
         }
         Self::construct2(
             reader,
@@ -105,10 +127,7 @@ impl<R: Read> LZMAReader<R> {
         preset_dict: Option<&[u8]>,
     ) -> Result<Self> {
         if lc > 8 || lp > 4 || pb > 4 {
-            return Err(Error::new(
-                ErrorKind::InvalidInput,
-                "Invalid lc or lp or pb",
-            ));
+            return error!(ErrorKind::InvalidInput, "Invalid lc or lp or pb");
         }
         let mut dict_size = get_dict_size(dict_size)?;
         if uncomp_size <= u64::MAX / 2 && dict_size as u64 > uncomp_size {
@@ -118,6 +137,20 @@ impl<R: Read> LZMAReader<R> {
         let rc = match rc {
             Ok(r) => r,
             Err(e) => {
+                #[cfg(not(feature = "no_std"))]
+                return Err(e);
+                #[cfg(feature = "no_std")]
+                let e = match e {
+                    embedded_io::ReadExactError::UnexpectedEof => {
+                        embedded_io::ErrorKind::InvalidData
+                    }
+                    embedded_io::ReadExactError::Other(e) => unsafe {
+                        core::intrinsics::transmute_unchecked::<
+                            <R as embedded_io::ErrorType>::Error,
+                            embedded_io::ErrorKind,
+                        >(e)
+                    },
+                };
                 return Err(e);
             }
         };
@@ -142,22 +175,28 @@ impl<R: Read> LZMAReader<R> {
         mut reader: R,
         mem_limit_kb: u32,
         preset_dict: Option<&[u8]>,
-    ) -> Result<Self> {
-        let props = reader.read_u8()?;
-        let dict_size = reader.read_u32::<LittleEndian>()?;
+    ) -> ReadExactResult<R, Self> {
+        let props = read_u8(&mut reader)?;
+        let dict_size = read_u32_le(&mut reader)?;
 
-        let uncomp_size = reader.read_u64::<LittleEndian>()?;
-        let need_mem = get_memery_usage_by_props(dict_size, props)?;
+        let uncomp_size = read_u64_le(&mut reader)?;
+        let need_mem = match get_memory_usage_by_props(dict_size, props) {
+            Ok(mem) => mem,
+            Err(e) => return error!(read_exact_error_kind!(R, e), ""),
+        };
         if mem_limit_kb < need_mem {
-            return Err(Error::new(
-                ErrorKind::OutOfMemory,
+            return error!(
+                read_exact_error_kind!(R, ErrorKind::OutOfMemory),
                 format!(
-                    "{}kb memery needed,but limit was {}kb",
+                    "{}kb memory needed,but limit was {}kb",
                     need_mem, mem_limit_kb
-                ),
-            ));
+                )
+            );
         }
-        Self::construct1(reader, uncomp_size, props, dict_size, preset_dict)
+        match Self::construct1(reader, uncomp_size, props, dict_size, preset_dict) {
+            Ok(out) => Ok(out),
+            Err(e) => error!(read_exact_error_kind!(R, e), ""),
+        }
     }
 
     /// Creates a new input stream that decompresses raw LZMA data (no .lzma header) from `reader` optionally with a preset dictionary.
@@ -196,7 +235,7 @@ impl<R: Read> LZMAReader<R> {
         Self::construct2(reader, uncomp_size, lc, lp, pb, dict_size, preset_dict)
     }
 
-    fn read_decode(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn read_decode(&mut self, buf: &mut [u8]) -> ReadExactResult<R, usize> {
         if buf.is_empty() {
             return Ok(0);
         }
@@ -239,10 +278,10 @@ impl<R: Read> LZMAReader<R> {
                 if self.lz.has_pending()
                     || (!self.relaxed_end_cond && !self.rc.is_stream_finished())
                 {
-                    return Err(Error::new(
-                        ErrorKind::InvalidData,
-                        "end reached but not decoder finished",
-                    ));
+                    return error!(
+                        read_exact_error_kind!(R, ErrorKind::InvalidData),
+                        "end reached but not decoder finished"
+                    );
                 }
                 return Ok(size as _);
             }
@@ -251,8 +290,35 @@ impl<R: Read> LZMAReader<R> {
     }
 }
 
+#[cfg(feature = "no_std")]
+impl<R: Read> embedded_io::ErrorType for LZMAReader<R> {
+    type Error = <R as embedded_io::ErrorType>::Error;
+}
+
+#[cfg(feature = "no_std")]
+type ReadReturn<R> = core::result::Result<usize, <R as embedded_io::ErrorType>::Error>;
+#[cfg(not(feature = "no_std"))]
+type ReadReturn<R> = Result<usize>;
+
 impl<R: Read> Read for LZMAReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        self.read_decode(buf)
+    fn read(&mut self, buf: &mut [u8]) -> ReadReturn<R> {
+        match self.read_decode(buf) {
+            Ok(size) => Ok(size),
+            Err(e) => {
+                #[cfg(not(feature = "no_std"))]
+                return Err(e);
+                #[cfg(feature = "no_std")]
+                let e = match e {
+                    embedded_io::ReadExactError::UnexpectedEof => unsafe {
+                        core::intrinsics::transmute_unchecked::<
+                            embedded_io::ErrorKind,
+                            <R as embedded_io::ErrorType>::Error,
+                        >(embedded_io::ErrorKind::InvalidData)
+                    },
+                    embedded_io::ReadExactError::Other(e) => e,
+                };
+                return Err(e);
+            }
+        }
     }
 }

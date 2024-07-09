@@ -5,11 +5,8 @@ use super::{
     range_enc::{RangeEncoder, RangeEncoderBuffer},
     *,
 };
-use std::{
-    io::Write,
-    ops::{Deref, DerefMut},
-    vec,
-};
+use crate::io::{error, write_error_kind, ErrorKind, Result, Write, WriteResult};
+use core::ops::{Deref, DerefMut};
 
 const LZMA2_UNCOMPRESSED_LIMIT: u32 = (2 << 20) - MATCH_LEN_MAX as u32;
 const LZMA2_COMPRESSED_LIMIT: u32 = (64 << 10) - 26;
@@ -61,7 +58,7 @@ pub(super) struct LZMAEncData {
     dist_price_count: i32,
     align_price_count: i32,
     dist_slot_prices_size: u32,
-    dist_slot_prices: Vec<Vec<u32>>,
+    dist_slot_prices: crate::Vec<crate::Vec<u32>>,
     full_dist_prices: [[u32; FULL_DISTANCES]; DIST_STATES],
     align_prices: [u32; ALIGN_SIZE],
     pub(super) back: i32,
@@ -113,10 +110,10 @@ impl LZMAEncoder {
         let mut m = 80;
         match mode {
             EncodeMode::Fast => {
-                m += FashEncoderMode::get_memery_usage(dict_size, extra_size_before, mf);
+                m += FashEncoderMode::get_memory_usage(dict_size, extra_size_before, mf);
             }
             EncodeMode::Normal => {
-                m += NormalEncoderMode::get_memery_usage(dict_size, extra_size_before, mf);
+                m += NormalEncoderMode::get_memory_usage(dict_size, extra_size_before, mf);
             }
         }
         m
@@ -220,8 +217,9 @@ impl LZMAEncoder {
         &mut self,
         rc: &mut RangeEncoder<W>,
         mode: &mut dyn LZMAEncoderTrait,
-    ) -> std::io::Result<()> {
-        if !self.lz.is_started() && !self.encode_init(rc)? {
+    ) -> WriteResult<W, ()> {
+        let encode_init = self.encode_init(rc)?;
+        if !self.lz.is_started() && !encode_init {
             return Ok(());
         }
         while self.encode_symbol(rc, mode)? {}
@@ -232,7 +230,7 @@ impl LZMAEncoder {
     pub fn encode_lzma1_end_marker<W: Write>(
         &mut self,
         rc: &mut RangeEncoder<W>,
-    ) -> std::io::Result<()> {
+    ) -> WriteResult<W, ()> {
         let pos_state = (self.lz.get_pos() - self.data.read_ahead) as u32 & self.coder.pos_mask;
         rc.encode_bit(
             &mut self.coder.is_match[self.coder.state.get() as usize],
@@ -244,7 +242,7 @@ impl LZMAEncoder {
         Ok(())
     }
 
-    fn encode_init<W: Write>(&mut self, rc: &mut RangeEncoder<W>) -> std::io::Result<bool> {
+    fn encode_init<W: Write>(&mut self, rc: &mut RangeEncoder<W>) -> WriteResult<W, bool> {
         assert!(self.data.read_ahead == -1);
         if !self.lz.has_enough_data(0) {
             return Ok(false);
@@ -252,8 +250,18 @@ impl LZMAEncoder {
         self.skip(1);
         let state = self.state.get() as usize;
         rc.encode_bit(&mut self.is_match[state], 0, 0)?;
-        self.literal_encoder
-            .encode_init(&self.lz, &self.data, &mut self.coder, rc)?;
+        match self
+            .literal_encoder
+            .encode_init(&self.lz, &self.data, &mut self.coder, rc)
+        {
+            Ok(_) => {}
+            Err(e) => {
+                return error!(
+                    write_error_kind!(W, ErrorKind::InvalidData),
+                    "Failed to run literal_encoder encode_init!"
+                )
+            }
+        }
         self.data.read_ahead -= 1;
         assert!(self.data.read_ahead == -1);
         self.data.uncompressed_size += 1;
@@ -265,7 +273,7 @@ impl LZMAEncoder {
         &mut self,
         rc: &mut RangeEncoder<W>,
         mode: &mut dyn LZMAEncoderTrait,
-    ) -> std::io::Result<bool> {
+    ) -> WriteResult<W, bool> {
         if !self.lz.has_enough_data(self.data.read_ahead + 1) {
             return Ok(false);
         }
@@ -328,9 +336,17 @@ impl LZMAEncoder {
         len: u32,
         pos_state: u32,
         rc: &mut RangeEncoder<W>,
-    ) -> std::io::Result<()> {
+    ) -> WriteResult<W, ()> {
         self.state.update_match();
-        self.match_len_encoder.encode(len, pos_state, rc)?;
+        match self.match_len_encoder.encode(len, pos_state, rc) {
+            Ok(_) => {}
+            Err(e) => {
+                return error!(
+                    write_error_kind!(W, ErrorKind::InvalidData),
+                    "Failed to run match_len_encoder encode!"
+                )
+            }
+        }
         let dist_slot = LZMAEncoder::get_dist_slot(dist);
         rc.encode_bit_tree(
             &mut self.dist_slots[get_dist_state(len) as usize],
@@ -369,7 +385,7 @@ impl LZMAEncoder {
         len: u32,
         pos_state: u32,
         rc: &mut RangeEncoder<W>,
-    ) -> std::io::Result<()> {
+    ) -> WriteResult<W, ()> {
         if rep == 0 {
             let state = self.state.get() as usize;
             rc.encode_bit(&mut self.is_rep0, state as usize, 0)?;
@@ -407,7 +423,15 @@ impl LZMAEncoder {
         if len == 1 {
             self.state.update_short_rep();
         } else {
-            self.rep_len_encoder.encode(len, pos_state, rc)?;
+            match self.rep_len_encoder.encode(len, pos_state, rc) {
+                Ok(_) => {}
+                Err(e) => {
+                    return error!(
+                        write_error_kind!(W, ErrorKind::InvalidData),
+                        "Failed to run rep_len_encoder encode!"
+                    )
+                }
+            }
             self.state.update_long_rep();
         }
         Ok(())
@@ -596,7 +620,7 @@ impl LZMAEncoder {
         &mut self,
         rc: &mut RangeEncoder<RangeEncoderBuffer>,
         mode: &mut dyn LZMAEncoderTrait,
-    ) -> std::io::Result<bool> {
+    ) -> WriteResult<RangeEncoderBuffer, bool> {
         if !self.lz.is_started() && !self.encode_init(rc)? {
             return Ok(false);
         }
@@ -627,7 +651,7 @@ impl DerefMut for LZMAEncoder {
 
 pub(super) struct LiteralEncoder {
     coder: LiteralCoder,
-    subencoders: Vec<LiteralSubencoder>,
+    subencoders: crate::Vec<LiteralSubencoder>,
 }
 #[derive(Clone)]
 struct LiteralSubencoder {
@@ -654,7 +678,7 @@ impl LiteralEncoder {
         data: &LZMAEncData,
         coder: &mut LZMACoder,
         rc: &mut RangeEncoder<W>,
-    ) -> std::io::Result<()> {
+    ) -> WriteResult<W, ()> {
         assert!(data.read_ahead >= 0);
         self.subencoders[0].encode(lz, data, coder, rc)
     }
@@ -665,13 +689,19 @@ impl LiteralEncoder {
         data: &LZMAEncData,
         coder: &mut LZMACoder,
         rc: &mut RangeEncoder<W>,
-    ) -> std::io::Result<()> {
+    ) -> WriteResult<W, ()> {
         assert!(data.read_ahead >= 0);
         let i = self.coder.get_sub_coder_index(
             lz.get_byte_backward(1 + data.read_ahead) as _,
             (lz.get_pos() - data.read_ahead) as u32,
         );
-        self.subencoders[i as usize].encode(lz, data, coder, rc)
+        match self.subencoders[i as usize].encode(lz, data, coder, rc) {
+            Ok(_) => Ok(()),
+            Err(e) => error!(
+                write_error_kind!(W, ErrorKind::InvalidData),
+                "Failed to run subencoders[{}] encode!"
+            ),
+        }
     }
 
     pub(super) fn get_price(
@@ -714,7 +744,7 @@ impl LiteralSubencoder {
         data: &LZMAEncData,
         coder: &mut LZMACoder,
         rc: &mut RangeEncoder<W>,
-    ) -> std::io::Result<()> {
+    ) -> WriteResult<W, ()> {
         let mut symbol = (lz.get_byte_backward(data.read_ahead) as u32 | 0x100) as u32;
 
         if coder.state.is_literal() {
@@ -803,8 +833,8 @@ impl LiteralSubencoder {
 
 pub(super) struct LengthEncoder {
     coder: LengthCoder,
-    counters: Vec<i32>,
-    prices: Vec<Vec<u32>>,
+    counters: crate::Vec<i32>,
+    prices: crate::Vec<crate::Vec<u32>>,
 }
 
 impl LengthEncoder {
@@ -830,7 +860,7 @@ impl LengthEncoder {
         len: u32,
         pos_state: u32,
         rc: &mut RangeEncoder<W>,
-    ) -> std::io::Result<()> {
+    ) -> WriteResult<W, ()> {
         let mut len = len as usize - MATCH_LEN_MIN;
         if len < LOW_SYMBOLS {
             rc.encode_bit(&mut self.coder.choice, 0, 0)?;

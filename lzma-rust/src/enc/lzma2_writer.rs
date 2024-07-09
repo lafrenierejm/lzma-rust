@@ -1,6 +1,6 @@
-use std::io::{ErrorKind, Write};
-
-use byteorder::WriteBytesExt;
+use crate::io::{
+    error, transmute_result_error_type, write_error_kind, ErrorKind, Result, Write, WriteResult,
+};
 
 use super::counting::CountingWriter;
 
@@ -21,7 +21,7 @@ pub struct LZMA2Options {
     pub nice_len: u32,
     pub mf: MFType,
     pub depth_limit: i32,
-    pub preset_dict: Option<Vec<u8>>,
+    pub preset_dict: Option<crate::Vec<u8>>,
 }
 
 impl Default for LZMA2Options {
@@ -118,7 +118,7 @@ impl LZMA2Options {
         }
     }
 
-    pub fn get_memery_usage(&self) -> u32 {
+    pub fn get_memory_usage(&self) -> u32 {
         let dict_size = self.dict_size;
         let extra_size_before = get_extra_size_before(dict_size);
         70 + LZMAEncoder::get_mem_usage(self.mode, dict_size, extra_size_before, self.mf)
@@ -143,7 +143,7 @@ pub fn get_extra_size_before(dict_size: u32) -> u32 {
 /// ```
 /// use std::io::Write;
 /// use lzma_rust::enc::lzma2_writer::{LZMA2Options, LZMA2Writer};
-/// let mut writer = LZMA2Writer::new(Vec::new(), &LZMA2Options::default());
+/// let mut writer = LZMA2Writer::new(crate::Vec::new(), &LZMA2Options::default());
 ///    writer.write_all(b"hello world").unwrap();
 ///    let compressed = writer.finish().unwrap();
 ///
@@ -196,7 +196,7 @@ impl<W: Write> LZMA2Writer<W> {
         }
     }
 
-    fn write_lzma(&mut self, uncompressed_size: u32, compressed_size: u32) -> std::io::Result<()> {
+    fn write_lzma(&mut self, uncompressed_size: u32, compressed_size: u32) -> WriteResult<W, ()> {
         let mut control = if self.props_needed {
             if self.dict_reset_needed {
                 0x80 + (3 << 5)
@@ -231,7 +231,7 @@ impl<W: Write> LZMA2Writer<W> {
         Ok(())
     }
 
-    fn write_uncompressed(&mut self, mut uncompressed_size: u32) -> std::io::Result<()> {
+    fn write_uncompressed(&mut self, mut uncompressed_size: u32) -> WriteResult<W, ()> {
         while uncompressed_size > 0 {
             let chunk_size = uncompressed_size.min(COMPRESSED_SIZE_MAX as u32);
             let mut chunk_header = [0u8; 3];
@@ -250,8 +250,17 @@ impl<W: Write> LZMA2Writer<W> {
         self.state_reset_needed = true;
         Ok(())
     }
-    fn write_chunk(&mut self) -> std::io::Result<()> {
-        let compressed_size = self.rc.finish_buffer()?.unwrap_or_default() as u32;
+    fn write_chunk(&mut self) -> WriteResult<W, ()> {
+        let compressed_size = match self.rc.finish_buffer() {
+            Ok(o) => o,
+            Err(e) => {
+                return error!(
+                    write_error_kind!(W, ErrorKind::InvalidData),
+                    "Faild to finish RC buffer!"
+                )
+            }
+        }
+        .unwrap_or_default() as u32;
         let mut uncompressed_size = self.lzma.data.uncompressed_size;
         assert!(compressed_size > 0);
         assert!(
@@ -272,23 +281,28 @@ impl<W: Write> LZMA2Writer<W> {
         self.rc.reset_buffer();
         Ok(())
     }
-    fn write_end_marker(&mut self) -> std::io::Result<()> {
+    fn write_end_marker(&mut self) -> WriteResult<W, ()> {
         assert!(!self.finished);
 
         self.lzma.lz.set_finishing();
 
         while self.pending_size > 0 {
-            self.lzma.encode_for_lzma2(&mut self.rc, &mut self.mode)?;
+            transmute_result_error_type!(
+                self.lzma.encode_for_lzma2(&mut self.rc, &mut self.mode),
+                bool,
+                RangeEncoderBuffer,
+                W
+            )?;
             self.write_chunk()?;
         }
 
-        self.inner.write_u8(0x00)?;
+        self.inner.write_all(&[0x00 as u8])?;
         self.finished = true;
 
         Ok(())
     }
 
-    pub fn finish(&mut self) -> std::io::Result<()> {
+    pub fn finish(&mut self) -> WriteResult<W, ()> {
         if !self.finished {
             self.write_end_marker()?;
         }
@@ -296,11 +310,16 @@ impl<W: Write> LZMA2Writer<W> {
     }
 }
 
+#[cfg(feature = "no_std")]
+impl<W: Write> embedded_io::ErrorType for LZMA2Writer<W> {
+    type Error = <W as embedded_io::ErrorType>::Error;
+}
+
 impl<W: Write> Drop for LZMA2Writer<W> {
     fn drop(&mut self) {}
 }
 impl<W: Write> Write for LZMA2Writer<W> {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+    fn write(&mut self, buf: &[u8]) -> WriteResult<W, usize> {
         let mut len = buf.len();
         if len == 0 && !self.finished {
             self.finish()?;
@@ -308,7 +327,7 @@ impl<W: Write> Write for LZMA2Writer<W> {
             return Ok(0);
         }
         if self.finished {
-            return Err(std::io::Error::new(ErrorKind::Other, "LZMA2 finished"));
+            return error!(write_error_kind!(W, ErrorKind::Other), "LZMA2 finished");
         }
 
         let mut off = 0;
@@ -317,23 +336,33 @@ impl<W: Write> Write for LZMA2Writer<W> {
             off += used;
             len -= used;
             self.pending_size += used as u32;
-            if self.lzma.encode_for_lzma2(&mut self.rc, &mut self.mode)? {
+            if transmute_result_error_type!(
+                self.lzma.encode_for_lzma2(&mut self.rc, &mut self.mode),
+                bool,
+                RangeEncoderBuffer,
+                W
+            )? {
                 self.write_chunk()?;
             }
         }
         Ok(off)
     }
 
-    fn flush(&mut self) -> std::io::Result<()> {
+    fn flush(&mut self) -> WriteResult<W, ()> {
         if self.finished {
-            return Err(std::io::Error::new(
-                ErrorKind::Other,
-                "LZMA2 flush finished",
-            ));
+            return error!(
+                write_error_kind!(W, ErrorKind::Other),
+                "LZMA2 flush finished"
+            );
         }
         self.lzma.lz.set_flushing();
         while self.pending_size > 0 {
-            self.lzma.encode_for_lzma2(&mut self.rc, &mut self.mode)?;
+            transmute_result_error_type!(
+                self.lzma.encode_for_lzma2(&mut self.rc, &mut self.mode),
+                bool,
+                RangeEncoderBuffer,
+                W
+            )?;
             self.write_chunk()?;
         }
         self.inner.flush()

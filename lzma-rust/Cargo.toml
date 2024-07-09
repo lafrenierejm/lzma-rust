@@ -11,8 +11,10 @@ license = "Apache-2.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["encoder"]
+default = ["encoder", "alloc"]
+no_std = ["dep:embedded-io"]
+alloc = ["embedded-io/alloc"]
 encoder = []
 
 [dependencies]
-byteorder = "1.5"
+embedded-io = { version = "0.6.1", optional = true }
