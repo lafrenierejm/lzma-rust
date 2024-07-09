@@ -1,67 +1,69 @@
 use super::*;
 
-use crate::io::{error, read_exact_error_kind, ErrorKind, Read, ReadExactResult, Result};
+use crate::io::{
+    error, read_exact_error_kind, ErrorKind, Read, ReadExactResult, ReadSelfExactResult, Result,
+};
 
 pub trait RangeSource: Read {
-    fn next_byte(&mut self) -> ReadExactResult<Self, u8>;
-    fn next_u32(&mut self) -> ReadExactResult<Self, u32>;
-    fn read_u8(&mut self) -> ReadExactResult<Self, u8>;
-    fn read_u16_be(&mut self) -> ReadExactResult<Self, u16>;
-    fn read_u16_le(&mut self) -> ReadExactResult<Self, u16>;
-    fn read_u32_be(&mut self) -> ReadExactResult<Self, u32>;
-    fn read_u32_le(&mut self) -> ReadExactResult<Self, u32>;
+    fn next_byte(&mut self) -> ReadSelfExactResult<u8>;
+    fn next_u32(&mut self) -> ReadSelfExactResult<u32>;
+    fn read_u8(&mut self) -> ReadSelfExactResult<u8>;
+    fn read_u16_be(&mut self) -> ReadSelfExactResult<u16>;
+    fn read_u16_le(&mut self) -> ReadSelfExactResult<u16>;
+    fn read_u32_be(&mut self) -> ReadSelfExactResult<u32>;
+    fn read_u32_le(&mut self) -> ReadSelfExactResult<u32>;
 
-    fn read_u64_be(&mut self) -> ReadExactResult<Self, u64>;
+    fn read_u64_be(&mut self) -> ReadSelfExactResult<u64>;
 
-    fn read_u64_le(&mut self) -> ReadExactResult<Self, u64>;
+    fn read_u64_le(&mut self) -> ReadSelfExactResult<u64>;
 }
-impl<T: Read> RangeSource for T {
-    fn read_u8(&mut self) -> ReadExactResult<T, u8> {
+impl<R: Read> RangeSource for R {
+    fn read_u8(&mut self) -> ReadExactResult<u8> {
         let mut buf = [0u8; 1];
         self.read_exact(&mut buf)?;
         Ok(buf[0])
     }
 
-    fn read_u16_be(&mut self) -> ReadExactResult<T, u16> {
+    fn read_u16_be(&mut self) -> ReadExactResult<u16> {
         let mut buf = [0u8; 2];
         self.read_exact(&mut buf)?;
         Ok(u16::from_be_bytes(buf))
     }
 
-    fn read_u16_le(&mut self) -> ReadExactResult<T, u16> {
+    fn read_u16_le(&mut self) -> ReadExactResult<u16> {
         let mut buf = [0u8; 2];
         self.read_exact(&mut buf)?;
         Ok(u16::from_le_bytes(buf))
     }
 
-    fn read_u32_be(&mut self) -> ReadExactResult<T, u32> {
+    fn read_u32_be(&mut self) -> ReadExactResult<u32> {
         let mut buf = [0u8; 4];
         self.read_exact(&mut buf)?;
         Ok(u32::from_be_bytes(buf))
     }
 
-    fn read_u32_le(&mut self) -> ReadExactResult<T, u32> {
+    fn read_u32_le(&mut self) -> ReadExactResult<u32> {
         let mut buf = [0u8; 4];
         self.read_exact(&mut buf)?;
         Ok(u32::from_le_bytes(buf))
     }
 
-    fn read_u64_be(&mut self) -> ReadExactResult<T, u64> {
+    fn read_u64_be(&mut self) -> ReadExactResult<u64> {
         let mut buf = [0u8; 8];
         self.read_exact(&mut buf)?;
         Ok(u64::from_be_bytes(buf))
     }
 
-    fn read_u64_le(&mut self) -> ReadExactResult<T, u64> {
+    fn read_u64_le(&mut self) -> ReadExactResult<u64> {
         let mut buf = [0u8; 8];
         self.read_exact(&mut buf)?;
         Ok(u64::from_le_bytes(buf))
     }
 
-    fn next_byte(&mut self) -> ReadExactResult<T, u8> {
+    fn next_byte(&mut self) -> ReadExactResult<u8> {
         self.read_u8()
     }
-    fn next_u32(&mut self) -> ReadExactResult<T, u32> {
+    fn next_u32(&mut self) -> ReadExactResult<u32> {
         self.read_u32_be()
     }
 }
@@ -82,7 +84,7 @@ impl RangeDecoder<RangeDecoderBuffer> {
 }
 
 impl<R: RangeSource> RangeDecoder<R> {
-    pub fn new_stream(mut inner: R) -> ReadExactResult<R, Self> {
+    pub fn new_stream(mut inner: R) -> crate::io::read_exact_result!(Self, Self) {
         let b = inner.next_byte()?;
         if b != 0x00 {
             return error!(
@@ -104,7 +106,7 @@ impl<R: RangeSource> RangeDecoder<R> {
 }
 
 impl<R: RangeSource> RangeDecoder<R> {
-    pub fn normalize(&mut self) -> ReadExactResult<R, ()> {
+    pub fn normalize(&mut self) -> ReadExactResult<()> {
         if self.range < 0x0100_0000 {
             let b = self.inner.next_byte()? as u32;
             let code = ((self.code) << SHIFT_BITS) | b;
@@ -115,7 +117,7 @@ impl<R: RangeSource> RangeDecoder<R> {
         Ok(())
     }
 
-    pub fn decode_bit(&mut self, prob: &mut u16) -> ReadExactResult<R, i32> {
+    pub fn decode_bit(&mut self, prob: &mut u16) -> ReadExactResult<i32> {
         self.normalize()?;
         let bound = (self.range >> (BIT_MODEL_TOTAL_BITS as i32)) * (*prob as u32);
         // let mask = 0x80000000u32;
@@ -133,7 +135,7 @@ impl<R: RangeSource> RangeDecoder<R> {
         }
     }
 
-    pub fn decode_bit_tree(&mut self, probs: &mut [u16]) -> ReadExactResult<R, i32> {
+    pub fn decode_bit_tree(&mut self, probs: &mut [u16]) -> ReadExactResult<i32> {
         let mut symbol = 1;
         loop {
             symbol = (symbol << 1) | self.decode_bit(&mut probs[symbol as usize])?;
@@ -144,7 +146,7 @@ impl<R: RangeSource> RangeDecoder<R> {
         Ok(symbol - probs.len() as i32)
     }
 
-    pub fn decode_reverse_bit_tree(&mut self, probs: &mut [u16]) -> ReadExactResult<R, i32> {
+    pub fn decode_reverse_bit_tree(&mut self, probs: &mut [u16]) -> ReadExactResult<i32> {
         let mut symbol = 1;
         let mut i = 0;
         let mut result = 0;
@@ -160,7 +162,7 @@ impl<R: RangeSource> RangeDecoder<R> {
         Ok(result)
     }
 
-    pub fn decode_direct_bits(&mut self, count: u32) -> ReadExactResult<R, i32> {
+    pub fn decode_direct_bits(&mut self, count: u32) -> ReadExactResult<i32> {
         let mut result = 0;
         for _ in 0..count {
             // }
@@ -184,7 +186,7 @@ pub struct RangeDecoderBuffer {
     pos: usize,
 }
 impl RangeDecoder<RangeDecoderBuffer> {
-    pub fn prepare<R: Read>(&mut self, mut reader: R, len: usize) -> ReadExactResult<R, ()> {
+    pub fn prepare<R: Read>(&mut self, mut reader: R, len: usize) -> ReadExactResult<()> {
         if len < 5 {
             return error!(
                 read_exact_error_kind!(R, ErrorKind::InvalidInput),

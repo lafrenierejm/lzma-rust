@@ -64,7 +64,7 @@ impl LZMADecoder {
         &mut self,
         lz: &mut LZDecoder,
         rc: &mut RangeDecoder<R>,
-    ) -> ReadExactResult<R, ()> {
+    ) -> ReadExactResult<()> {
         match lz.repeat_pending() {
             Ok(_) => {}
             Err(e) => {
@@ -119,7 +119,7 @@ impl LZMADecoder {
         &mut self,
         pos_state: u32,
         rc: &mut RangeDecoder<R>,
-    ) -> ReadExactResult<R, u32> {
+    ) -> ReadExactResult<u32> {
         self.state.update_match();
         self.reps[3] = self.reps[2];
         self.reps[2] = self.reps[1];
@@ -150,7 +150,7 @@ impl LZMADecoder {
         &mut self,
         pos_state: u32,
         rc: &mut RangeDecoder<R>,
-    ) -> ReadExactResult<R, u32> {
+    ) -> ReadExactResult<u32> {
         let index = self.state.get() as usize;
         if rc.decode_bit(&mut self.is_rep0[index])? == 0 {
             let index: usize = self.state.get() as usize;
@@ -209,7 +209,7 @@ impl LiteralDecoder {
         coder: &mut LZMACoder,
         lz: &mut LZDecoder,
         rc: &mut RangeDecoder<R>,
-    ) -> ReadExactResult<R, ()> {
+    ) -> ReadExactResult<()> {
         let i = self
             .coder
             .get_sub_coder_index(lz.get_byte(0) as _, lz.get_pos() as _);
@@ -234,7 +234,7 @@ impl LiteralSubdecoder {
         coder: &mut LZMACoder,
         lz: &mut LZDecoder,
         rc: &mut RangeDecoder<R>,
-    ) -> ReadExactResult<R, ()> {
+    ) -> ReadExactResult<()> {
         let mut symbol: u32 = 1;
         let liter = coder.state.is_literal();
         if liter {
@@ -276,7 +276,7 @@ impl LengthCoder {
         &mut self,
         pos_state: usize,
         rc: &mut RangeDecoder<R>,
-    ) -> ReadExactResult<R, i32> {
+    ) -> ReadExactResult<i32> {
         if rc.decode_bit(&mut self.choice[0])? == 0 {
             return Ok(rc
                 .decode_bit_tree(&mut self.low[pos_state])?

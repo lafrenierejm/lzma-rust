@@ -1,6 +1,6 @@
 #[cfg(feature = "no_std")]
 use crate::alloc::rc::Rc;
-use crate::io::Write;
+use crate::io::{Write, WriteResult};
 use core::cell::Cell;
 #[cfg(not(feature = "no_std"))]
 use std::rc::Rc;
@@ -15,16 +15,6 @@ pub struct CountingWriter<W> {
 impl<W: Write> embedded_io::ErrorType for CountingWriter<W> {
     type Error = <W as embedded_io::ErrorType>::Error;
 }
-
-#[cfg(feature = "no_std")]
-type WriteReturn<W> = core::result::Result<usize, <W as embedded_io::ErrorType>::Error>;
-#[cfg(not(feature = "no_std"))]
-type WriteReturn<W> = Result<usize>;
-
-#[cfg(feature = "no_std")]
-type FlushReturn<W> = core::result::Result<(), <W as embedded_io::ErrorType>::Error>;
-#[cfg(not(feature = "no_std"))]
-type FlushReturn<W> = Result<()>;
 
 impl<W: Write> CountingWriter<W> {
     pub fn new(inner: W) -> Self {
@@ -44,14 +34,14 @@ impl<W: Write> CountingWriter<W> {
 }
 
 impl<W: Write> Write for CountingWriter<W> {
-    fn write(&mut self, buf: &[u8]) -> WriteReturn<W> {
+    fn write(&mut self, buf: &[u8]) -> WriteResult<usize> {
         let len = self.inner.write(buf)?;
         self.written_bytes += len;
         self.counting.set(self.written_bytes);
         Ok(len)
     }
 
-    fn flush(&mut self) -> FlushReturn<W> {
+    fn flush(&mut self) -> WriteResult<()> {
         self.inner.flush()
     }
 }

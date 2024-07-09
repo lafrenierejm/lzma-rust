@@ -197,7 +197,7 @@ impl<W: Write> LZMA2Writer<W> {
         }
     }
 
-    fn write_lzma(&mut self, uncompressed_size: u32, compressed_size: u32) -> WriteResult<W, ()> {
+    fn write_lzma(&mut self, uncompressed_size: u32, compressed_size: u32) -> WriteResult<()> {
         let mut control = if self.props_needed {
             if self.dict_reset_needed {
                 0x80 + (3 << 5)
@@ -230,7 +230,7 @@ impl<W: Write> LZMA2Writer<W> {
         Ok(())
     }
 
-    fn write_uncompressed(&mut self, mut uncompressed_size: u32) -> WriteResult<W, ()> {
+    fn write_uncompressed(&mut self, mut uncompressed_size: u32) -> WriteResult<()> {
         while uncompressed_size > 0 {
             let chunk_size = uncompressed_size.min(COMPRESSED_SIZE_MAX);
             let mut chunk_header = [0u8; 3];
@@ -249,7 +249,7 @@ impl<W: Write> LZMA2Writer<W> {
         self.state_reset_needed = true;
         Ok(())
     }
-    fn write_chunk(&mut self) -> WriteResult<W, ()> {
+    fn write_chunk(&mut self) -> WriteResult<()> {
         let compressed_size = match self.rc.finish_buffer() {
             Ok(o) => o,
             Err(_e) => {
@@ -280,7 +280,7 @@ impl<W: Write> LZMA2Writer<W> {
         self.rc.reset_buffer();
         Ok(())
     }
-    fn write_end_marker(&mut self) -> WriteResult<W, ()> {
+    fn write_end_marker(&mut self) -> WriteResult<()> {
         assert!(!self.finished);
 
         self.lzma.lz.set_finishing();
@@ -301,7 +301,7 @@ impl<W: Write> LZMA2Writer<W> {
         Ok(())
     }
 
-    pub fn finish(&mut self) -> WriteResult<W, ()> {
+    pub fn finish(&mut self) -> WriteResult<()> {
         if !self.finished {
             self.write_end_marker()?;
         }
@@ -318,7 +318,7 @@ impl<W: Write> Drop for LZMA2Writer<W> {
     fn drop(&mut self) {}
 }
 impl<W: Write> Write for LZMA2Writer<W> {
-    fn write(&mut self, buf: &[u8]) -> WriteResult<W, usize> {
+    fn write(&mut self, buf: &[u8]) -> WriteResult<usize> {
         let mut len = buf.len();
         if len == 0 && !self.finished {
             self.finish()?;
@@ -347,7 +347,7 @@ impl<W: Write> Write for LZMA2Writer<W> {
         Ok(off)
     }
 
-    fn flush(&mut self) -> WriteResult<W, ()> {
+    fn flush(&mut self) -> WriteResult<()> {
         if self.finished {
             return error!(
                 write_error_kind!(W, ErrorKind::Other),

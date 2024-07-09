@@ -307,7 +307,7 @@ impl LZEncoderData {
         out: &mut W,
         backward: i32,
         len: usize,
-    ) -> WriteResult<W, ()> {
+    ) -> WriteResult<()> {
         let start = (self.read_pos + 1 - backward) as usize;
         out.write_all(&self.buf[start..(start + len)])
     }

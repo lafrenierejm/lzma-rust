@@ -150,7 +150,7 @@ impl LZDecoder {
         &mut self,
         mut in_data: R,
         len: usize,
-    ) -> ReadExactResult<R, ()> {
+    ) -> ReadExactResult<()> {
         let copy_size = (self.buf_size - self.pos).min(len);
         let buf = &mut self.buf[self.pos..(self.pos + copy_size)];
         in_data.read_exact(buf)?;

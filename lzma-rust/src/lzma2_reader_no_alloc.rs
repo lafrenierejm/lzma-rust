@@ -62,7 +62,7 @@ pub const fn get_dict_size<const DICT_SIZE: u32>() -> u32 {
 }
 
 #[inline]
-pub const fn get_props_pb_lp_lc_num_subdecoders(props: u8) -> (u32, u32, u32, u32) {
+pub const fn get_props_pb_lp_lc_num_subdecoders(props: u8) -> (u32, u32, u32, u32, u32) {
     if props > (4 * 5 + 4) * 9 + 8 {
         unreachable!()
     }
@@ -74,7 +74,15 @@ pub const fn get_props_pb_lp_lc_num_subdecoders(props: u8) -> (u32, u32, u32, u3
         unreachable!()
     }
 
-    (props as u32, pb as u32, lp as u32, lc as u32)
+    let num_subdecoders = 1 << (lc + lp);
+
+    (
+        props as u32,
+        pb as u32,
+        lp as u32,
+        lc as u32,
+        num_subdecoders as u32,
+    )
 }
 
 impl<

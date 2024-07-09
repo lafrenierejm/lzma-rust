@@ -1,16 +1,15 @@
 #![cfg_attr(feature = "no_std", no_std)]
+#![feature(const_mut_refs)]
 #![cfg_attr(
     all(feature = "no_std", feature = "alloc"),
     feature(stmt_expr_attributes),
     feature(core_intrinsics),
-    feature(const_mut_refs),
     allow(internal_features)
 )]
 #![cfg_attr(
     not(feature = "alloc"),
     feature(generic_const_exprs),
     feature(const_trait_impl),
-    feature(const_mut_refs),
     feature(const_intrinsic_copy),
     feature(const_for),
     allow(incomplete_features),
@@ -20,7 +19,7 @@
 #[cfg_attr(feature = "alloc", path = "./decoder_alloc.rs")]
 #[cfg_attr(not(feature = "alloc"), path = "./decoder_no_alloc.rs")]
 pub mod decoder;
-mod lz;
+pub mod lz;
 #[cfg_attr(feature = "alloc", path = "./lzma2_reader_alloc.rs")]
 #[cfg_attr(not(feature = "alloc"), path = "./lzma2_reader_no_alloc.rs")]
 pub mod lzma2_reader;
@@ -42,7 +41,7 @@ pub use lzma_reader::get_memory_usage as lzma_get_memory_usage;
 pub use lzma_reader::get_memory_usage_by_props as lzma_get_memory_usage_by_props;
 pub use lzma_reader::LZMAReader;
 #[cfg(all(feature = "encoder", feature = "alloc"))]
-mod enc;
+pub mod enc;
 #[cfg(all(feature = "encoder", feature = "alloc"))]
 pub use enc::*;
 
@@ -54,14 +53,27 @@ pub mod io {
     //error!(ErrorKind::Other, "no_std feature is not enabled");
     macro_rules! error {
         ($kind:expr, $msg:expr) => {
-            Err(Error::new($kind, $msg))
+            Err(std::io::Error::new($kind, $msg))
         };
     }
 
     pub type Result<T> = std::io::Result<T>;
     pub(crate) use error;
-    pub type ReadExactResult<R, O> = std::io::Result<O>;
-    pub type WriteResult<W, O> = std::io::Result<O>;
+
+    macro_rules! read_exact_result {
+        ($reader: ty, $out: ty) => {
+            std::io::Result<$out>
+        };
+    }
+
+    macro_rules! write_result {
+        ($writer: ty, $out: ty) => {
+            std::io::Result<$out>
+        };
+    }
+
+    pub(crate) use read_exact_result;
+    pub(crate) use write_result;
 
     macro_rules! read_exact_error_kind {
         ($reader: ty, $kind:expr) => {
@@ -143,10 +155,19 @@ pub mod io {
 
     pub(crate) use transmute_result_error_type;
 
-    pub type ReadExactResult<R, O> =
-        core::result::Result<O, embedded_io::ReadExactError<<R as embedded_io::ErrorType>::Error>>;
+    macro_rules! read_exact_result {
+        ($reader: ty, $out: ty) => {
+            core::result::Result<$out, embedded_io::ReadExactError<<$reader as embedded_io::ErrorType>::Error>>
+        };
+    }
+    pub(crate) use read_exact_result;
 
-    pub type WriteResult<W, O> = core::result::Result<O, <W as embedded_io::ErrorType>::Error>;
+    macro_rules! write_result {
+        ($writer: ty, $out: ty) => {
+            core::result::Result<$out, <$writer as embedded_io::ErrorType>::Error>
+        };
+    }
+    pub(crate) use write_result;
 }
 
 pub const DICT_SIZE_MIN: u32 = 4096;

@@ -6,6 +6,7 @@ mod lzma_writer;
 mod range_enc;
 use super::*;
 pub use counting::*;
+pub use encoder::EncodeMode;
 pub use lzma2_writer::*;
 mod counting;
 pub use lzma_writer::*;

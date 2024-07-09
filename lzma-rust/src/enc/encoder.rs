@@ -218,7 +218,7 @@ impl LZMAEncoder {
         &mut self,
         rc: &mut RangeEncoder<W>,
         mode: &mut dyn LZMAEncoderTrait,
-    ) -> WriteResult<W, ()> {
+    ) -> WriteResult<()> {
         let encode_init = self.encode_init(rc)?;
         if !self.lz.is_started() && !encode_init {
             return Ok(());
@@ -231,7 +231,7 @@ impl LZMAEncoder {
     pub fn encode_lzma1_end_marker<W: Write>(
         &mut self,
         rc: &mut RangeEncoder<W>,
-    ) -> WriteResult<W, ()> {
+    ) -> WriteResult<()> {
         let pos_state = (self.lz.get_pos() - self.data.read_ahead) as u32 & self.coder.pos_mask;
         rc.encode_bit(
             &mut self.coder.is_match[self.coder.state.get() as usize],
@@ -243,7 +243,7 @@ impl LZMAEncoder {
         Ok(())
     }
 
-    fn encode_init<W: Write>(&mut self, rc: &mut RangeEncoder<W>) -> WriteResult<W, bool> {
+    fn encode_init<W: Write>(&mut self, rc: &mut RangeEncoder<W>) -> WriteResult<bool> {
         assert!(self.data.read_ahead == -1);
         if !self.lz.has_enough_data(0) {
             return Ok(false);
@@ -274,7 +274,7 @@ impl LZMAEncoder {
         &mut self,
         rc: &mut RangeEncoder<W>,
         mode: &mut dyn LZMAEncoderTrait,
-    ) -> WriteResult<W, bool> {
+    ) -> WriteResult<bool> {
         if !self.lz.has_enough_data(self.data.read_ahead + 1) {
             return Ok(false);
         }
@@ -337,7 +337,7 @@ impl LZMAEncoder {
         len: u32,
         pos_state: u32,
         rc: &mut RangeEncoder<W>,
-    ) -> WriteResult<W, ()> {
+    ) -> WriteResult<()> {
         self.state.update_match();
         match self.match_len_encoder.encode(len, pos_state, rc) {
             Ok(_) => {}
@@ -386,7 +386,7 @@ impl LZMAEncoder {
         len: u32,
         pos_state: u32,
         rc: &mut RangeEncoder<W>,
-    ) -> WriteResult<W, ()> {
+    ) -> WriteResult<()> {
         if rep == 0 {
             let state = self.state.get() as usize;
             rc.encode_bit(&mut self.is_rep0, state, 0)?;
@@ -621,7 +621,7 @@ impl LZMAEncoder {
         &mut self,
         rc: &mut RangeEncoder<RangeEncoderBuffer>,
         mode: &mut dyn LZMAEncoderTrait,
-    ) -> WriteResult<RangeEncoderBuffer, bool> {
+    ) -> crate::io::WriteRangeEncoderBufferResult<bool> {
         if !self.lz.is_started() && !self.encode_init(rc)? {
             return Ok(false);
         }
@@ -679,7 +679,7 @@ impl LiteralEncoder {
         data: &LZMAEncData,
         coder: &mut LZMACoder,
         rc: &mut RangeEncoder<W>,
-    ) -> WriteResult<W, ()> {
+    ) -> WriteResult<()> {
         assert!(data.read_ahead >= 0);
         self.subencoders[0].encode(lz, data, coder, rc)
     }
@@ -690,7 +690,7 @@ impl LiteralEncoder {
         data: &LZMAEncData,
         coder: &mut LZMACoder,
         rc: &mut RangeEncoder<W>,
-    ) -> WriteResult<W, ()> {
+    ) -> WriteResult<()> {
         assert!(data.read_ahead >= 0);
         let i = self.coder.get_sub_coder_index(
             lz.get_byte_backward(1 + data.read_ahead) as _,
@@ -745,7 +745,7 @@ impl LiteralSubencoder {
         data: &LZMAEncData,
         coder: &mut LZMACoder,
         rc: &mut RangeEncoder<W>,
-    ) -> WriteResult<W, ()> {
+    ) -> WriteResult<()> {
         let mut symbol = lz.get_byte_backward(data.read_ahead) as u32 | 0x100;
 
         if coder.state.is_literal() {
@@ -861,7 +861,7 @@ impl LengthEncoder {
         len: u32,
         pos_state: u32,
         rc: &mut RangeEncoder<W>,
-    ) -> WriteResult<W, ()> {
+    ) -> WriteResult<()> {
         let mut len = len as usize - MATCH_LEN_MIN;
         if len < LOW_SYMBOLS {
             rc.encode_bit(&mut self.coder.choice, 0, 0)?;
