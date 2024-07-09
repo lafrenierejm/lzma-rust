@@ -49,6 +49,7 @@ impl LZMA2Options {
         1 << 26,
     ];
     const PRESET_TO_DEPTH_LIMIT: &'static [i32] = &[4, 8, 24, 48];
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         dict_size: u32,
         lc: u32,
