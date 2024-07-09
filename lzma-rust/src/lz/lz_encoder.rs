@@ -1,4 +1,4 @@
-use crate::io::{Write, WriteResult};
+use crate::io::{Write};
 use core::ops::Deref;
 
 use super::{bt4::BT4, hc4::HC4};
@@ -307,7 +307,7 @@ impl LZEncoderData {
         out: &mut W,
         backward: i32,
         len: usize,
-    ) -> WriteResult<()> {
+    ) -> crate::io::write_result!(W, ()) {
         let start = (self.read_pos + 1 - backward) as usize;
         out.write_all(&self.buf[start..(start + len)])
     }

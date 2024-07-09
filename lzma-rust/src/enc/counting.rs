@@ -1,6 +1,6 @@
 #[cfg(feature = "no_std")]
 use crate::alloc::rc::Rc;
-use crate::io::{Write, WriteResult};
+use crate::io::{Write};
 use core::cell::Cell;
 #[cfg(not(feature = "no_std"))]
 use std::rc::Rc;
@@ -34,14 +34,14 @@ impl<W: Write> CountingWriter<W> {
 }
 
 impl<W: Write> Write for CountingWriter<W> {
-    fn write(&mut self, buf: &[u8]) -> WriteResult<usize> {
+    fn write(&mut self, buf: &[u8]) -> crate::io::write_result!(W, usize) {
         let len = self.inner.write(buf)?;
         self.written_bytes += len;
         self.counting.set(self.written_bytes);
         Ok(len)
     }
 
-    fn flush(&mut self) -> WriteResult<()> {
+    fn flush(&mut self) -> crate::io::write_result!(W, ()) {
         self.inner.flush()
     }
 }

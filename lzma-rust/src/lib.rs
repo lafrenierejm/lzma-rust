@@ -12,8 +12,8 @@
     feature(const_trait_impl),
     feature(const_intrinsic_copy),
     feature(const_for),
-    allow(incomplete_features),
-    feature(const_slice_from_raw_parts_mut)
+    feature(const_slice_from_raw_parts_mut),
+    allow(incomplete_features)
 )]
 
 #[cfg_attr(feature = "alloc", path = "./decoder_alloc.rs")]
@@ -47,17 +47,14 @@ pub use enc::*;
 
 use state::*;
 
-#[cfg(not(feature = "no_std"))]
-pub mod io {
-    pub use std::io::*;
-    //error!(ErrorKind::Other, "no_std feature is not enabled");
+#[cfg(all(not(feature = "no_std"), feature = "alloc"))]
+mod io_alloc {
     macro_rules! error {
         ($kind:expr, $msg:expr) => {
             Err(std::io::Error::new($kind, $msg))
         };
     }
 
-    pub type Result<T> = std::io::Result<T>;
     pub(crate) use error;
 
     macro_rules! read_exact_result {
@@ -72,6 +69,13 @@ pub mod io {
         };
     }
 
+    macro_rules! lzma_reader_result {
+        ($reader: ty, $out: ty) => {
+            std::io::Result<$out>
+        };
+    }
+
+    pub(crate) use lzma_reader_result;
     pub(crate) use read_exact_result;
     pub(crate) use write_result;
 
@@ -97,23 +101,24 @@ pub mod io {
     }
     pub(crate) use transmute_result_error_type;
 }
+
+#[cfg(not(feature = "no_std"))]
+pub mod io {
+    pub use std::io::*;
+
+    #[cfg(feature = "alloc")]
+    pub(crate) use super::io_alloc::*;
+
+    pub type Result<T> = std::io::Result<T>;
+}
 #[cfg(not(feature = "no_std"))]
 pub use std::vec::Vec;
 
 #[cfg(all(feature = "no_std", feature = "alloc"))]
 pub use alloc::vec::Vec;
 
-#[cfg(feature = "no_std")]
-pub mod io {
-
-    pub type Result<T> = core::result::Result<T, embedded_io::ErrorKind>;
-    pub use embedded_io::*;
-    macro_rules! error {
-        ($kind:expr, $msg: expr) => {
-            Err($kind)
-        };
-    }
-
+#[cfg(all(feature = "no_std", feature = "alloc"))]
+mod io_alloc {
     macro_rules! read_exact_error_kind {
         ($reader: ty, $kind:expr) => {{
             let kind = unsafe {
@@ -127,6 +132,14 @@ pub mod io {
     }
     pub(crate) use read_exact_error_kind;
 
+    macro_rules! lzma_reader_result {
+        ($reader: ty, $out: ty) => {
+            core::result::Result<$out, <$reader as embedded_io::ErrorType>::Error>
+        };
+    }
+
+    pub(crate) use lzma_reader_result;
+
     macro_rules! write_error_kind {
         ($writer: ty, $kind:expr) => {{
             let kind = unsafe {
@@ -137,6 +150,11 @@ pub mod io {
             };
             kind
         }};
+    }
+    macro_rules! error {
+        ($kind:expr, $msg: expr) => {
+            Err($kind)
+        };
     }
 
     pub(crate) use error;
@@ -168,6 +186,16 @@ pub mod io {
         };
     }
     pub(crate) use write_result;
+}
+
+#[cfg(feature = "no_std")]
+pub mod io {
+
+    pub type Result<T> = core::result::Result<T, embedded_io::ErrorKind>;
+    pub use embedded_io::*;
+
+    #[cfg(feature = "alloc")]
+    pub(crate) use super::io_alloc::*;
 }
 
 pub const DICT_SIZE_MIN: u32 = 4096;

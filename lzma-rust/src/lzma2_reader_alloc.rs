@@ -3,7 +3,9 @@ use super::{
     lz::LZDecoder,
     range_dec::{RangeDecoder, RangeDecoderBuffer},
 };
-use crate::io::{error, read_exact_error_kind, ErrorKind, Read, ReadExactResult, Result};
+use crate::io::{error, read_exact_error_kind, ErrorKind, Read};
+#[cfg(feature = "no_std")]
+use embedded_io::Error;
 pub const COMPRESSED_SIZE_MAX: u32 = 1 << 16;
 use crate::range_dec::RangeSource;
 
@@ -81,19 +83,19 @@ impl<R: Read> LZMA2Reader<R> {
         }
     }
 
-    pub fn read_u8(&mut self) -> ReadExactResult<u8> {
+    pub fn read_u8(&mut self) -> crate::io::read_exact_result!(R, u8) {
         let mut buf = [0; 1];
         self.inner.read_exact(&mut buf)?;
         Ok(buf[0])
     }
 
-    pub fn read_u16_be(&mut self) -> ReadExactResult<u16> {
+    pub fn read_u16_be(&mut self) -> crate::io::read_exact_result!(R, u16) {
         let mut buf = [0; 2];
         self.inner.read_exact(&mut buf)?;
         Ok(u16::from_be_bytes(buf))
     }
 
-    fn decode_chunk_header(&mut self) -> ReadExactResult<()> {
+    fn decode_chunk_header(&mut self) -> crate::io::read_exact_result!(R, ()) {
         let control = self.inner.read_u8()?;
         if control == 0x00 {
             self.end_reached = true;
@@ -141,7 +143,7 @@ impl<R: Read> LZMA2Reader<R> {
         Ok(())
     }
 
-    fn decode_props(&mut self) -> ReadExactResult<()> {
+    fn decode_props(&mut self) -> crate::io::read_exact_result!(R, ()) {
         let props = self.inner.read_u8()?;
         if props > (4 * 5 + 4) * 9 + 8 {
             return error!(
@@ -164,7 +166,7 @@ impl<R: Read> LZMA2Reader<R> {
         Ok(())
     }
 
-    fn read_decode(&mut self, buf: &mut [u8]) -> ReadExactResult<usize> {
+    fn read_decode(&mut self, buf: &mut [u8]) -> crate::io::read_exact_result!(R, usize) {
         if buf.is_empty() {
             return Ok(0);
         }
@@ -240,13 +242,8 @@ impl<R: Read> embedded_io::ErrorType for LZMA2Reader<R> {
     type Error = <R as embedded_io::ErrorType>::Error;
 }
 
-#[cfg(feature = "no_std")]
-type ReadReturn = core::result::Result<usize, <R as embedded_io::ErrorType>::Error>;
-#[cfg(not(feature = "no_std"))]
-type ReadReturn = Result<usize>;
-
 impl<R: Read> Read for LZMA2Reader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> ReadReturn {
+    fn read(&mut self, buf: &mut [u8]) -> crate::io::lzma_reader_result!(R, usize) {
         match self.read_decode(buf) {
             Ok(size) => Ok(size),
             Err(e) => {

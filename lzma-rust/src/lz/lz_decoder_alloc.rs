@@ -1,4 +1,4 @@
-use crate::io::{error, ErrorKind, Read, ReadExactResult, Result};
+use crate::io::{error, ErrorKind, Read,  Result};
 
 #[derive(Default)]
 pub struct LZDecoder {
@@ -150,7 +150,7 @@ impl LZDecoder {
         &mut self,
         mut in_data: R,
         len: usize,
-    ) -> ReadExactResult<()> {
+    ) -> crate::io::read_exact_result!(R, ()) {
         let copy_size = (self.buf_size - self.pos).min(len);
         let buf = &mut self.buf[self.pos..(self.pos + copy_size)];
         in_data.read_exact(buf)?;

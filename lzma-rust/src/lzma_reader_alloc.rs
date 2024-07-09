@@ -1,4 +1,6 @@
-use crate::io::{error, read_exact_error_kind, ErrorKind, Read, ReadExactResult, Result};
+use crate::io::{error, read_exact_error_kind, ErrorKind, Read, Result};
+#[cfg(feature = "no_std")]
+use embedded_io::Error;
 
 use super::decoder::LZMADecoder;
 use super::lz::LZDecoder;
@@ -64,25 +66,25 @@ impl<R> Drop for LZMAReader<R> {
     }
 }
 
-pub fn read_u8<R: Read>(reader: &mut R) -> ReadExactResult<u8> {
+pub fn read_u8<R: Read>(reader: &mut R) -> crate::io::read_exact_result!(R, u8) {
     let mut buf = [0; 1];
     reader.read_exact(&mut buf)?;
     Ok(buf[0])
 }
 
-pub fn read_u16_be<R: Read>(reader: &mut R) -> ReadExactResult<u16> {
+pub fn read_u16_be<R: Read>(reader: &mut R) -> crate::io::read_exact_result!(R, u16) {
     let mut buf = [0; 2];
     reader.read_exact(&mut buf)?;
     Ok(u16::from_be_bytes(buf))
 }
 
-pub fn read_u32_le<R: Read>(reader: &mut R) -> ReadExactResult<u32> {
+pub fn read_u32_le<R: Read>(reader: &mut R) -> crate::io::read_exact_result!(R, u32) {
     let mut buf = [0; 4];
     reader.read_exact(&mut buf)?;
     Ok(u32::from_le_bytes(buf))
 }
 
-pub fn read_u64_le<R: Read>(reader: &mut R) -> ReadExactResult<u64> {
+pub fn read_u64_le<R: Read>(reader: &mut R) -> crate::io::read_exact_result!(R, u64) {
     let mut buf = [0; 8];
     reader.read_exact(&mut buf)?;
     Ok(u64::from_le_bytes(buf))
@@ -137,8 +139,6 @@ impl<R: Read> LZMAReader<R> {
         let rc = match rc {
             Ok(r) => r,
             Err(e) => {
-                #[cfg(not(feature = "no_std"))]
-                return Err(e);
                 #[cfg(feature = "no_std")]
                 let e = match e {
                     embedded_io::ReadExactError::UnexpectedEof => {
@@ -151,6 +151,7 @@ impl<R: Read> LZMAReader<R> {
                         >(e)
                     },
                 };
+                return Err(e);
             }
         };
         let lz = LZDecoder::new(get_dict_size(dict_size)? as _, preset_dict);
@@ -174,7 +175,7 @@ impl<R: Read> LZMAReader<R> {
         mut reader: R,
         mem_limit_kb: u32,
         preset_dict: Option<&[u8]>,
-    ) -> ReadExactResult<Self> {
+    ) -> crate::io::read_exact_result!(R, Self) {
         let props = read_u8(&mut reader)?;
         let dict_size = read_u32_le(&mut reader)?;
 
@@ -234,7 +235,7 @@ impl<R: Read> LZMAReader<R> {
         Self::construct2(reader, uncomp_size, lc, lp, pb, dict_size, preset_dict)
     }
 
-    fn read_decode(&mut self, buf: &mut [u8]) -> ReadExactResult<usize> {
+    fn read_decode(&mut self, buf: &mut [u8]) -> crate::io::read_exact_result!(R, usize) {
         if buf.is_empty() {
             return Ok(0);
         }
@@ -294,18 +295,11 @@ impl<R: Read> embedded_io::ErrorType for LZMAReader<R> {
     type Error = <R as embedded_io::ErrorType>::Error;
 }
 
-#[cfg(feature = "no_std")]
-type ReadReturn = core::result::Result<usize, <R as embedded_io::ErrorType>::Error>;
-#[cfg(not(feature = "no_std"))]
-type ReadReturn = Result<usize>;
-
 impl<R: Read> Read for LZMAReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> ReadReturn {
+    fn read(&mut self, buf: &mut [u8]) -> crate::io::lzma_reader_result!(R, usize) {
         match self.read_decode(buf) {
             Ok(size) => Ok(size),
             Err(e) => {
-                #[cfg(not(feature = "no_std"))]
-                return Err(e);
                 #[cfg(feature = "no_std")]
                 let e = match e {
                     embedded_io::ReadExactError::UnexpectedEof => unsafe {
@@ -316,6 +310,7 @@ impl<R: Read> Read for LZMAReader<R> {
                     },
                     embedded_io::ReadExactError::Other(e) => e,
                 };
+                Err(e)
             }
         }
     }

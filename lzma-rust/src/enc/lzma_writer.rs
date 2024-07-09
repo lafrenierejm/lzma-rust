@@ -1,4 +1,4 @@
-use crate::io::{error, write_error_kind, ErrorKind, Write, WriteResult};
+use crate::io::{error, write_error_kind, ErrorKind, Write};
 
 use super::{range_enc::RangeEncoder, CountingWriter, LZMA2Options};
 
@@ -39,7 +39,7 @@ impl<W: Write> LZMAWriter<W> {
         use_header: bool,
         use_end_marker: bool,
         expected_uncompressed_size: Option<u64>,
-    ) -> crate::io::WriteCountingWriterResult<LZMAWriter<W>> {
+    ) -> crate::io::write_result!(CountingWriter<W>, LZMAWriter<W>) {
         let (mut lzma, mode) = LZMAEncoder::new(
             options.mode,
             options.lc,
@@ -92,7 +92,7 @@ impl<W: Write> LZMAWriter<W> {
         out: CountingWriter<W>,
         options: &LZMA2Options,
         input_size: Option<u64>,
-    ) -> crate::io::WriteCountingWriterResult<Self> {
+    ) -> crate::io::write_result!(CountingWriter<W>, Self) {
         Self::new(out, options, true, input_size.is_none(), input_size)
     }
 
@@ -101,7 +101,7 @@ impl<W: Write> LZMAWriter<W> {
         out: CountingWriter<W>,
         options: &LZMA2Options,
         use_end_marker: bool,
-    ) -> crate::io::WriteCountingWriterResult<Self> {
+    ) -> crate::io::write_result!(CountingWriter<W>, Self) {
         Self::new(out, options, false, use_end_marker, None)
     }
 
@@ -115,7 +115,7 @@ impl<W: Write> LZMAWriter<W> {
         self.current_uncompressed_size
     }
 
-    pub fn finish(&mut self) -> crate::io::WriteCountingWriterResult<()> {
+    pub fn finish(&mut self) -> crate::io::write_result!(CountingWriter<W>, ()) {
         if !self.finished {
             if let Some(exp) = self.expected_uncompressed_size {
                 if exp != self.current_uncompressed_size {
@@ -143,7 +143,7 @@ impl<W: Write> embedded_io::ErrorType for LZMAWriter<W> {
 }
 
 impl<W: Write> Write for LZMAWriter<W> {
-    fn write(&mut self, buf: &[u8]) -> WriteResult<usize> {
+    fn write(&mut self, buf: &[u8]) -> crate::io::write_result!(W, usize) {
         if self.finished {
             return error!(
                 write_error_kind!(W, ErrorKind::InvalidInput),
@@ -176,7 +176,7 @@ impl<W: Write> Write for LZMAWriter<W> {
         Ok(off)
     }
 
-    fn flush(&mut self) -> WriteResult<()> {
+    fn flush(&mut self) -> crate::io::write_result!(W, ()) {
         Ok(())
     }
 }
