@@ -59,7 +59,7 @@ impl NormalEncoderMode {
             self.opts[opt_prev].opt_prev = self.opt_cur;
             self.opt_cur = opt_prev;
             opt_prev = temp;
-            if self.opt_cur <= 0 {
+            if self.opt_cur == 0 {
                 break;
             }
         }
@@ -565,8 +565,7 @@ impl LZMAEncoderTrait for NormalEncoderMode {
         }
 
         // Calculate the prices of repeated matches of all lengths.
-        for rep in 0..REPS {
-            let rep_len = rep_lens[rep];
+        for (rep, rep_len) in rep_lens.into_iter().enumerate().take(REPS) {
             if rep_len < MATCH_LEN_MIN as i32 {
                 continue;
             }

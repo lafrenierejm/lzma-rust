@@ -251,7 +251,7 @@ impl<W: Write> LZMA2Writer<W> {
     fn write_chunk(&mut self) -> WriteResult<W, ()> {
         let compressed_size = match self.rc.finish_buffer() {
             Ok(o) => o,
-            Err(e) => {
+            Err(_e) => {
                 return error!(
                     write_error_kind!(W, ErrorKind::InvalidData),
                     "Faild to finish RC buffer!"

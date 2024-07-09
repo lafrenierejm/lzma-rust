@@ -229,11 +229,6 @@ impl embedded_io::ErrorType for RangeDecoderBuffer {
     type Error = embedded_io::ErrorKind;
 }
 
-#[cfg(feature = "no_std")]
-type ReadReturn = core::result::Result<usize, embedded_io::ErrorKind>;
-#[cfg(not(feature = "no_std"))]
-type ReadReturn = Result<usize>;
-
 impl Read for RangeDecoderBuffer {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         let len = buf.len();

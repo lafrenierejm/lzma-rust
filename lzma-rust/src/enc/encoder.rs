@@ -121,6 +121,7 @@ impl LZMAEncoder {
 }
 
 impl LZMAEncoder {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         mode: EncodeMode,
         lc: u32,
