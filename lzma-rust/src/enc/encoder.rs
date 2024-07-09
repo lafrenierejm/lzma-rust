@@ -255,7 +255,7 @@ impl LZMAEncoder {
             .encode_init(&self.lz, &self.data, &mut self.coder, rc)
         {
             Ok(_) => {}
-            Err(e) => {
+            Err(_) => {
                 return error!(
                     write_error_kind!(W, ErrorKind::InvalidData),
                     "Failed to run literal_encoder encode_init!"
@@ -340,7 +340,7 @@ impl LZMAEncoder {
         self.state.update_match();
         match self.match_len_encoder.encode(len, pos_state, rc) {
             Ok(_) => {}
-            Err(e) => {
+            Err(_) => {
                 return error!(
                     write_error_kind!(W, ErrorKind::InvalidData),
                     "Failed to run match_len_encoder encode!"
@@ -425,7 +425,7 @@ impl LZMAEncoder {
         } else {
             match self.rep_len_encoder.encode(len, pos_state, rc) {
                 Ok(_) => {}
-                Err(e) => {
+                Err(_) => {
                     return error!(
                         write_error_kind!(W, ErrorKind::InvalidData),
                         "Failed to run rep_len_encoder encode!"
@@ -697,7 +697,7 @@ impl LiteralEncoder {
         );
         match self.subencoders[i as usize].encode(lz, data, coder, rc) {
             Ok(_) => Ok(()),
-            Err(e) => error!(
+            Err(_) => error!(
                 write_error_kind!(W, ErrorKind::InvalidData),
                 "Failed to run subencoders[{}] encode!"
             ),

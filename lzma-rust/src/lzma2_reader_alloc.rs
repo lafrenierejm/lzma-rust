@@ -124,7 +124,9 @@ impl<R: Read> LZMA2Reader<R> {
                     "Corrupted input data (LZMA2:1)"
                 );
             } else if control >= 0xA0 {
-                if let Some(l) = self.lzma.as_mut() { l.reset() }
+                if let Some(l) = self.lzma.as_mut() {
+                    l.reset()
+                }
             }
             self.rc.prepare(&mut self.inner, compressed_size)?;
         } else if control > 0x02 {
@@ -202,7 +204,13 @@ impl<R: Read> LZMA2Reader<R> {
                                 e.to_string()
                             );
                             #[cfg(feature = "no_std")]
-                            return error!(read_exact_error_kind!(R, ErrorKind::InvalidInput), "");
+                            {
+                                let _ = e;
+                                return error!(
+                                    read_exact_error_kind!(R, ErrorKind::InvalidInput),
+                                    ""
+                                );
+                            }
                         }
                     }
                 }
@@ -214,7 +222,8 @@ impl<R: Read> LZMA2Reader<R> {
                 len -= copied_size;
                 size += copied_size;
                 self.uncompressed_size -= copied_size;
-                if self.uncompressed_size == 0 && (!self.rc.is_finished() || self.lz.has_pending()) {
+                if self.uncompressed_size == 0 && (!self.rc.is_finished() || self.lz.has_pending())
+                {
                     return error!(
                         read_exact_error_kind!(R, ErrorKind::InvalidInput),
                         "rc not finished or lz has pending"

@@ -69,7 +69,10 @@ impl LZMADecoder {
             Ok(_) => {}
             Err(e) => {
                 #[cfg(feature = "no_std")]
-                return error!(read_exact_error_kind!(R, ErrorKind::InvalidData), "");
+                {
+                    let _ = e;
+                    return error!(read_exact_error_kind!(R, ErrorKind::InvalidData), "");
+                }
                 #[cfg(not(feature = "no_std"))]
                 return error!(
                     read_exact_error_kind!(R, ErrorKind::InvalidData),
@@ -95,7 +98,10 @@ impl LZMADecoder {
                     Ok(_) => {}
                     Err(e) => {
                         #[cfg(feature = "no_std")]
-                        return error!(read_exact_error_kind!(R, ErrorKind::InvalidData), "");
+                        {
+                            let _ = e;
+                            return error!(read_exact_error_kind!(R, ErrorKind::InvalidData), "");
+                        }
                         #[cfg(not(feature = "no_std"))]
                         return error!(
                             read_exact_error_kind!(R, ErrorKind::InvalidData),
