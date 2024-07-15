@@ -1,12 +1,12 @@
 #[cfg(feature = "no_std")]
 use crate::alloc::rc::Rc;
-use crate::io::{Write};
+use crate::io::Write;
 use core::cell::Cell;
 #[cfg(not(feature = "no_std"))]
 use std::rc::Rc;
 
 pub struct CountingWriter<W> {
-    inner: W,
+    pub inner: W,
     counting: Rc<Cell<usize>>,
     written_bytes: usize,
 }
@@ -30,6 +30,10 @@ impl<W: Write> CountingWriter<W> {
 
     pub fn counting(&self) -> Rc<Cell<usize>> {
         Rc::clone(&self.counting)
+    }
+
+    pub fn inner(&self) -> &W {
+        &self.inner
     }
 }
 

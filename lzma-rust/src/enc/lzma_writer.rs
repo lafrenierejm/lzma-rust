@@ -22,7 +22,7 @@ use super::encoder::{LZMAEncoder, LZMAEncoderModes};
 /// ```
 ///
 pub struct LZMAWriter<W: Write> {
-    rc: RangeEncoder<CountingWriter<W>>,
+    pub rc: RangeEncoder<CountingWriter<W>>,
     lzma: LZMAEncoder,
     use_end_marker: bool,
     finished: bool,

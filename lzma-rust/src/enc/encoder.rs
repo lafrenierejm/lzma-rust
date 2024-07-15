@@ -5,7 +5,10 @@ use super::{
     range_enc::{RangeEncoder, RangeEncoderBuffer},
     *,
 };
-use crate::io::{error, write_error_kind, ErrorKind, Write};
+use crate::{
+    io::{error, write_error_kind, ErrorKind, Write},
+    vec,
+};
 use core::ops::{Deref, DerefMut};
 
 const LZMA2_UNCOMPRESSED_LIMIT: u32 = (2 << 20) - MATCH_LEN_MAX as u32;
@@ -243,7 +246,10 @@ impl LZMAEncoder {
         Ok(())
     }
 
-    fn encode_init<W: Write>(&mut self, rc: &mut RangeEncoder<W>) -> crate::io::write_result!(W, bool) {
+    fn encode_init<W: Write>(
+        &mut self,
+        rc: &mut RangeEncoder<W>,
+    ) -> crate::io::write_result!(W, bool) {
         assert!(self.data.read_ahead == -1);
         if !self.lz.has_enough_data(0) {
             return Ok(false);

@@ -1,4 +1,7 @@
-use crate::io::{error, ErrorKind, Read,  Result};
+use crate::{
+    io::{error, ErrorKind, Read, Result},
+    vec,
+};
 
 #[derive(Default)]
 pub struct LZDecoder {

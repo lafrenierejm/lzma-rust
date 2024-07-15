@@ -1,4 +1,5 @@
 use super::{hash234::Hash234, LZEncoder, MatchFind, Matches};
+use crate::vec;
 
 pub struct BT4 {
     hash: Hash234,

@@ -112,10 +112,10 @@ pub mod io {
     pub type Result<T> = std::io::Result<T>;
 }
 #[cfg(not(feature = "no_std"))]
-pub use std::vec::Vec;
+pub use std::{vec, vec::Vec};
 
 #[cfg(all(feature = "no_std", feature = "alloc"))]
-pub use alloc::vec::Vec;
+pub use alloc::{vec, vec::Vec};
 
 #[cfg(all(feature = "no_std", feature = "alloc"))]
 mod io_alloc {

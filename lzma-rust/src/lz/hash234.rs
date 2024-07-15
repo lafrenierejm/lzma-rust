@@ -1,4 +1,5 @@
 use super::lz_encoder::LZEncoder;
+use crate::vec;
 
 const HASH2_SIZE: u32 = 1 << 10;
 const HASH2_MASK: u32 = HASH2_SIZE - 1;

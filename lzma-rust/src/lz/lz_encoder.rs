@@ -1,4 +1,4 @@
-use crate::io::{Write};
+use crate::{io::Write, vec};
 use core::ops::Deref;
 
 use super::{bt4::BT4, hc4::HC4};
@@ -90,8 +90,6 @@ impl LZEncoder {
         match_len_max: u32,
         mf: MFType,
     ) -> u32 {
-        
-
         get_buf_size(
             dict_size,
             extra_size_before,

@@ -4,6 +4,7 @@ use super::{
     state::State,
     MATCH_LEN_MAX, MATCH_LEN_MIN, REPS,
 };
+use crate::vec;
 
 pub struct NormalEncoderMode {
     opts: crate::Vec<Optimum>,

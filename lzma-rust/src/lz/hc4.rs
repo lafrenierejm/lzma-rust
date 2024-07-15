@@ -4,6 +4,8 @@ use super::{
     LZEncoderData,
 };
 
+use crate::vec;
+
 pub struct HC4 {
     hash: Hash234,
     chain: crate::Vec<i32>,

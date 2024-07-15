@@ -41,7 +41,7 @@ pub struct LZMA2Reader<
 > where
     [(); COMPRESSED_SIZE_MAX as usize - 5]:,
 {
-    inner: R,
+    pub inner: R,
     lz: LZDecoder<DICT_SIZE>,
     rc: RangeDecoder<RangeDecoderBuffer<{ COMPRESSED_SIZE_MAX as usize - 5 }>>,
     lzma: LZMADecoder<LC, LP, PB, NUM_SUBDECODERS, DICT_SIZE>,

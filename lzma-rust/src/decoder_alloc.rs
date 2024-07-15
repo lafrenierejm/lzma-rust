@@ -4,7 +4,10 @@ use super::lz::LZDecoder;
 use super::range_dec::RangeDecoder;
 use super::*;
 
-use crate::io::{error, read_exact_error_kind, ErrorKind};
+use crate::{
+    io::{error, read_exact_error_kind, ErrorKind},
+    vec,
+};
 use core::ops::{Deref, DerefMut};
 
 pub struct LZMADecoder {

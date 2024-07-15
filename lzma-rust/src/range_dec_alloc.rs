@@ -1,6 +1,9 @@
 use super::*;
 
-use crate::io::{error, read_exact_error_kind, ErrorKind, Read, Result};
+use crate::{
+    io::{error, read_exact_error_kind, ErrorKind, Read, Result},
+    vec,
+};
 
 pub trait RangeSource: Read {
     fn next_byte(&mut self) -> crate::io::read_exact_result!(Self, u8);

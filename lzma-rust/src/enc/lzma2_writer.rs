@@ -1,6 +1,4 @@
-use crate::io::{
-    error, transmute_result_error_type, write_error_kind, ErrorKind, Write, 
-};
+use crate::io::{error, transmute_result_error_type, write_error_kind, ErrorKind, Write};
 
 use super::counting::CountingWriter;
 
@@ -150,7 +148,7 @@ pub fn get_extra_size_before(dict_size: u32) -> u32 {
 ///
 /// ```
 pub struct LZMA2Writer<W: Write> {
-    inner: CountingWriter<W>,
+    pub inner: CountingWriter<W>,
     rc: RangeEncoder<RangeEncoderBuffer>,
     lzma: LZMAEncoder,
     mode: LZMAEncoderModes,
@@ -197,7 +195,11 @@ impl<W: Write> LZMA2Writer<W> {
         }
     }
 
-    fn write_lzma(&mut self, uncompressed_size: u32, compressed_size: u32) -> crate::io::write_result!(W, ()) {
+    fn write_lzma(
+        &mut self,
+        uncompressed_size: u32,
+        compressed_size: u32,
+    ) -> crate::io::write_result!(W, ()) {
         let mut control = if self.props_needed {
             if self.dict_reset_needed {
                 0x80 + (3 << 5)
@@ -230,7 +232,10 @@ impl<W: Write> LZMA2Writer<W> {
         Ok(())
     }
 
-    fn write_uncompressed(&mut self, mut uncompressed_size: u32) -> crate::io::write_result!(W, ()) {
+    fn write_uncompressed(
+        &mut self,
+        mut uncompressed_size: u32,
+    ) -> crate::io::write_result!(W, ()) {
         while uncompressed_size > 0 {
             let chunk_size = uncompressed_size.min(COMPRESSED_SIZE_MAX);
             let mut chunk_header = [0u8; 3];

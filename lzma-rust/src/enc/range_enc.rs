@@ -1,6 +1,6 @@
-use crate::io::{Write};
+use crate::io::Write;
 
-use crate::{BIT_MODEL_TOTAL, BIT_MODEL_TOTAL_BITS, MOVE_BITS, SHIFT_BITS, TOP_MASK};
+use crate::{vec, BIT_MODEL_TOTAL, BIT_MODEL_TOTAL_BITS, MOVE_BITS, SHIFT_BITS, TOP_MASK};
 
 const MOVE_REDUCING_BITS: usize = 4;
 const BIT_PRICE_SHIFT_BITS: usize = 4;
@@ -21,7 +21,7 @@ pub struct RangeEncoder<W> {
     range: u32,
     cache_size: u32,
     cache: u8,
-    inner: W,
+    pub inner: W,
 }
 
 impl<W: Write> RangeEncoder<W> {
@@ -80,7 +80,12 @@ impl<W: Write> RangeEncoder<W> {
         Ok(())
     }
 
-    pub fn encode_bit(&mut self, probs: &mut [u16], index: usize, bit: u32) -> crate::io::write_result!(W, ()) {
+    pub fn encode_bit(
+        &mut self,
+        probs: &mut [u16],
+        index: usize,
+        bit: u32,
+    ) -> crate::io::write_result!(W, ()) {
         let prob = &mut probs[index];
         let bound = (self.range >> BIT_MODEL_TOTAL_BITS) * (*prob as u32);
         if bit == 0 {
@@ -98,7 +103,11 @@ impl<W: Write> RangeEncoder<W> {
         Ok(())
     }
 
-    pub fn encode_bit_tree(&mut self, probs: &mut [u16], symbol: u32) -> crate::io::write_result!(W, ()) {
+    pub fn encode_bit_tree(
+        &mut self,
+        probs: &mut [u16],
+        symbol: u32,
+    ) -> crate::io::write_result!(W, ()) {
         let mut index = 1;
         let mut mask = probs.len() as u32;
         loop {
@@ -136,7 +145,11 @@ impl<W: Write> RangeEncoder<W> {
         Ok(())
     }
 
-    pub fn encode_direct_bits(&mut self, value: u32, mut count: u32) -> crate::io::write_result!(W, ()) {
+    pub fn encode_direct_bits(
+        &mut self,
+        value: u32,
+        mut count: u32,
+    ) -> crate::io::write_result!(W, ()) {
         loop {
             self.range >>= 1;
             count -= 1;
