@@ -4,7 +4,7 @@ use super::{
     range_dec::{RangeDecoder, RangeDecoderBuffer},
 };
 use crate::io::{ErrorType, Read};
-pub const COMPRESSED_SIZE_MAX: u32 = 1 << 16;
+pub const COMPRESSED_SIZE_MAX: usize = 1 << 16;
 
 /// Decompresses a raw LZMA2 stream (no XZ headers).
 /// # Examples
@@ -28,6 +28,8 @@ impl<
         const NUM_SUBDECODERS: usize,
         R: Read,
     > ErrorType for LZMA2Reader<DICT_SIZE, LC, LP, PB, NUM_SUBDECODERS, R>
+where
+    [(); (DICT_SIZE + 15) & !15]:,
 {
     type Error = <R as embedded_io::ErrorType>::Error;
 }
@@ -40,11 +42,29 @@ pub struct LZMA2Reader<
     R: Read,
 > where
     [(); COMPRESSED_SIZE_MAX as usize - 5]:,
+    [(); (DICT_SIZE + 15) & !15]:,
 {
     pub inner: R,
-    lz: LZDecoder<DICT_SIZE>,
+    use_lzma: bool,
+    lz: LZDecoder<
+        {
+            {
+                (DICT_SIZE + 15) & !15
+            }
+        },
+    >,
     rc: RangeDecoder<RangeDecoderBuffer<{ COMPRESSED_SIZE_MAX as usize - 5 }>>,
-    lzma: LZMADecoder<LC, LP, PB, NUM_SUBDECODERS, DICT_SIZE>,
+    lzma: LZMADecoder<
+        LC,
+        LP,
+        PB,
+        NUM_SUBDECODERS,
+        {
+            {
+                (DICT_SIZE + 15) & !15
+            }
+        },
+    >,
     uncompressed_size: usize,
     is_lzma_chunk: bool,
     need_dict_reset: bool,
@@ -52,12 +72,12 @@ pub struct LZMA2Reader<
     end_reached: bool,
 }
 #[inline]
-pub const fn get_memory_usage<const DICT_SIZE: u32>() -> u32 {
+pub const fn get_memory_usage<const DICT_SIZE: usize>() -> usize {
     40 + COMPRESSED_SIZE_MAX / 1024 + get_dict_size::<DICT_SIZE>() / 1024
 }
 
 #[inline]
-pub const fn get_dict_size<const DICT_SIZE: u32>() -> u32 {
+pub const fn get_dict_size<const DICT_SIZE: usize>() -> usize {
     DICT_SIZE + 15 & !15
 }
 
@@ -95,6 +115,7 @@ impl<
     > LZMA2Reader<DICT_SIZE, LC, LP, PB, NUM_SUBDECODERS, R>
 where
     [(); COMPRESSED_SIZE_MAX as usize - 5]:,
+    [(); (DICT_SIZE + 15) & !15]:,
 {
     /// Create a new LZMA2 reader.
     /// `inner` is the reader to read compressed data from.
@@ -105,14 +126,15 @@ where
         } else {
             false
         };
-        let lz = LZDecoder::<DICT_SIZE>::new(preset_dict);
+        let lz = LZDecoder::<{ (DICT_SIZE + 15) & !15 }>::new(preset_dict);
         const COMPRESSED_SIZE_MAX_MINUS_FIVE: usize = COMPRESSED_SIZE_MAX as usize - 5;
         let rc = RangeDecoder::<RangeDecoderBuffer<COMPRESSED_SIZE_MAX_MINUS_FIVE>>::new_buffer();
         Self {
             inner,
             lz,
             rc,
-            lzma: LZMADecoder::<LC, LP, PB, NUM_SUBDECODERS, DICT_SIZE>::new(),
+            use_lzma: false,
+            lzma: LZMADecoder::<LC, LP, PB, NUM_SUBDECODERS, { (DICT_SIZE + 15) & !15 }>::new(),
             uncompressed_size: 0,
             is_lzma_chunk: false,
             need_dict_reset: !has_preset,
@@ -145,7 +167,7 @@ where
         u16::from_be_bytes(buf)
     }
 
-    fn decode_chunk_header(&mut self) -> () {
+    fn decode_chunk_header(&mut self) {
         let control = self.read_u8();
         if control == 0x00 {
             self.end_reached = true;
@@ -166,9 +188,12 @@ where
             let compressed_size = self.read_u16_be() as usize + 1;
             if control >= 0xC0 {
                 self.need_props = false;
+                let _ = self.read_u8();
+                self.use_lzma = true;
+                self.lzma.reset();
             } else if self.need_props {
                 return;
-            } else if control >= 0xA0 {
+            } else if control >= 0xA0 && self.use_lzma {
                 self.lzma.reset();
             }
             self.rc.prepare(&mut self.inner, compressed_size);
@@ -178,11 +203,10 @@ where
             self.is_lzma_chunk = false;
             self.uncompressed_size = (self.read_u16_be() + 1) as _;
         }
-        ()
     }
 
     fn read_decode(&mut self, buf: &mut [u8]) -> usize {
-        if buf.len() == 0 {
+        if buf.is_empty() {
             return 0;
         }
 
@@ -207,7 +231,9 @@ where
                     .unwrap();
             } else {
                 self.lz.set_limit(copy_size_max);
-                self.lzma.decode(&mut self.lz, &mut self.rc);
+                if self.use_lzma {
+                    self.lzma.decode(&mut self.lz, &mut self.rc);
+                }
             }
 
             {
@@ -216,10 +242,9 @@ where
                 len -= copied_size;
                 size += copied_size;
                 self.uncompressed_size -= copied_size;
-                if self.uncompressed_size == 0 {
-                    if !self.rc.is_finished() || self.lz.has_pending() {
-                        return 0;
-                    }
+                if self.uncompressed_size == 0 && (!self.rc.is_finished() || self.lz.has_pending())
+                {
+                    return 0;
                 }
             }
         }
@@ -237,6 +262,7 @@ impl<
     > Read for LZMA2Reader<DICT_SIZE, LC, LP, PB, NUM_SUBDECODERS, R>
 where
     [(); COMPRESSED_SIZE_MAX as usize - 5]:,
+    [(); (DICT_SIZE + 15) & !15]:,
 {
     fn read(
         &mut self,

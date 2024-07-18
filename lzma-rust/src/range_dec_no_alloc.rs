@@ -126,8 +126,8 @@ impl<R: RangeSource> RangeDecoder<R> {
             *prob += (BIT_MODEL_TOTAL as u16 - *prob) >> (MOVE_BITS as u16);
             0
         } else {
-            self.range = self.range - (bound);
-            self.code = self.code - (bound);
+            self.range -= bound;
+            self.code -= bound;
             *prob -= *prob >> (MOVE_BITS as u16);
             1
         }

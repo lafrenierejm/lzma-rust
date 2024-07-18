@@ -384,33 +384,14 @@ impl<const PB: u32> LZMACoder<PB> {
         let end = DIST_SPECIAL_END[i];
         let len = end - start;
 
-        let mut arr = [0u16; 32]; //32 is the max length of the array
-        let out_buf = unsafe {
-            let arr_ptr = arr.as_mut_ptr();
-            let out = core::slice::from_raw_parts_mut(arr_ptr, len);
-            out
-        };
-
-        let in_arr = unsafe {
-            let ptr = self.dist_special.as_ptr().add(start);
-            core::slice::from_raw_parts(ptr, len)
-        };
-
-        copy_from_slice(out_buf, in_arr);
-        out_buf
+        unsafe {
+            let ptr = self.dist_special.as_mut_ptr().add(start);
+            core::slice::from_raw_parts_mut(ptr, len)
+        }
     }
 }
 
 #[inline(always)]
-#[cfg(feature = "alloc")]
-pub(crate) fn init_probs(probs: &mut [u16]) {
-    for prob in probs.iter_mut() {
-        *prob = PROB_INIT;
-    }
-}
-
-#[inline(always)]
-#[cfg(not(feature = "alloc"))]
 pub(crate) const fn init_probs<const N: usize>(probs: &mut [u16; N]) {
     *probs = [PROB_INIT; N];
 }
@@ -432,7 +413,6 @@ pub(crate) struct LiteralSubcoder {
 impl LiteralSubcoder {
     pub const fn new() -> Self {
         let probs = [PROB_INIT; 0x300];
-        // init_probs(&mut probs);
         Self { probs }
     }
 
@@ -460,13 +440,12 @@ impl LiteralCoder {
 #[cfg(not(feature = "alloc"))]
 impl<const LC: u32, const LP: u32> LiteralCoder<LC, LP> {
     const LITERAL_POS_MASK: u32 = (1 << LP) - 1;
-    const LC_INNER: u32 = LC;
     pub const fn new() -> Self {
         Self
     }
     pub(crate) fn get_sub_coder_index(&self, prev_byte: u32, pos: u32) -> u32 {
-        let low = prev_byte >> (8 - Self::LC_INNER);
-        let high = (pos & Self::LITERAL_POS_MASK) << Self::LC_INNER;
+        let low = prev_byte >> (8 - LC);
+        let high = (pos & Self::LITERAL_POS_MASK) << LC;
         low + high
     }
 }

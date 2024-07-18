@@ -85,13 +85,13 @@ impl LZMADecoder {
         }
         while lz.has_space() {
             let pos_state = lz.get_pos() as u32 & self.pos_mask;
-            let i = self.state.get() as usize;
+            let i = self.coder.state.get() as usize;
             let probs = &mut self.is_match[i];
             let bit = rc.decode_bit(&mut probs[pos_state as usize])?;
             if bit == 0 {
                 self.literal_decoder.decode(&mut self.coder, lz, rc)?;
             } else {
-                let index = self.state.get() as usize;
+                let index = self.coder.state.get() as usize;
                 let len = if rc.decode_bit(&mut self.is_rep[index])? == 0 {
                     self.decode_match(pos_state, rc)?
                 } else {
@@ -123,7 +123,7 @@ impl LZMADecoder {
         pos_state: u32,
         rc: &mut RangeDecoder<R>,
     ) -> crate::io::read_exact_result!(R, u32) {
-        self.state.update_match();
+        self.coder.state.update_match();
         self.reps[3] = self.reps[2];
         self.reps[2] = self.reps[1];
         self.reps[1] = self.reps[0];
@@ -154,16 +154,16 @@ impl LZMADecoder {
         pos_state: u32,
         rc: &mut RangeDecoder<R>,
     ) -> crate::io::read_exact_result!(R, u32) {
-        let index = self.state.get() as usize;
+        let index = self.coder.state.get() as usize;
         if rc.decode_bit(&mut self.is_rep0[index])? == 0 {
-            let index: usize = self.state.get() as usize;
+            let index: usize = self.coder.state.get() as usize;
             if rc.decode_bit(&mut self.is_rep0_long[index][pos_state as usize])? == 0 {
-                self.state.update_short_rep();
+                self.coder.state.update_short_rep();
                 return Ok(1);
             }
         } else {
             let tmp;
-            let s = self.state.get() as usize;
+            let s = self.coder.state.get() as usize;
             if rc.decode_bit(&mut self.is_rep1[s])? == 0 {
                 tmp = self.reps[1];
             } else {
@@ -179,7 +179,7 @@ impl LZMADecoder {
             self.reps[0] = tmp;
         }
 
-        self.state.update_long_rep();
+        self.coder.state.update_long_rep();
         self.rep_len_decoder
             .decode(pos_state as _, rc)
             .map(|i| i as u32)

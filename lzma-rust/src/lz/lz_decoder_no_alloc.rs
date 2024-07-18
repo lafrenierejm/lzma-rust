@@ -1,4 +1,4 @@
-use crate::io::{ErrorKind, ErrorType, Read, ReadExactError, Result};
+use crate::io::{ErrorType, Read, ReadExactError};
 
 #[derive(Copy, Clone)]
 pub struct LZDecoder<const DICT_SIZE: usize> {
@@ -105,9 +105,9 @@ impl<const DICT_SIZE: usize> LZDecoder<DICT_SIZE> {
         }
     }
 
-    pub fn repeat(&mut self, dist: usize, len: usize) -> Result<()> {
+    pub fn repeat(&mut self, dist: usize, len: usize) {
         if dist >= self.full {
-            return Err(ErrorKind::InvalidInput);
+            panic!("dist >= self.full");
         }
         let mut left = usize::min(self.limit - self.pos, len);
         self.pending_len = len - left;
@@ -135,7 +135,7 @@ impl<const DICT_SIZE: usize> LZDecoder<DICT_SIZE> {
             left -= copy_size;
 
             if left == 0 {
-                return Ok(());
+                return;
             }
             back
         } else {
@@ -165,14 +165,12 @@ impl<const DICT_SIZE: usize> LZDecoder<DICT_SIZE> {
         if self.full < self.pos {
             self.full = self.pos;
         }
-        Ok(())
     }
 
-    pub fn repeat_pending(&mut self) -> Result<()> {
+    pub fn repeat_pending(&mut self) {
         if self.pending_len > 0 {
-            self.repeat(self.pending_dist, self.pending_len)?;
+            self.repeat(self.pending_dist, self.pending_len);
         }
-        Ok(())
     }
 
     pub fn copy_uncompressed<R: Read>(
