@@ -1,8 +1,8 @@
-## Fork
+# Fork
 
 This repository is a fork of [sevenz-rust's lzma-rust](https://github.com/dyz1990/sevenz-rust), which has now been removed from Github. This fork was originally created to allow usage of lzma-rust's decompression with `no_std` and no alloc, instead allowing usage of only a mutable, statically allocated slice, passed to the crate where needed. However, this repository is now the only copy of lzma-rust on Github, so can also now be used for ongoing archival and development of lzma-rust.
 
-## Original README Contents
+# Original README Contents
 
 LZMA/LZMA2 codec ported from [tukaani xz for java](https://tukaani.org/xz/java.html)
 
