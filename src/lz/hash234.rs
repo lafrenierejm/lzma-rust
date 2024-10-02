@@ -1,37 +1,37 @@
 use super::lz_encoder::LZEncoder;
 use crate::vec;
 
-const HASH2_SIZE: u32 = 1 << 10;
-const HASH2_MASK: u32 = HASH2_SIZE - 1;
-const HASH3_SIZE: u32 = 1 << 16;
-const HASH3_MASK: u32 = HASH3_SIZE - 1;
+const HASH2_SIZE: u64 = 1 << 10;
+const HASH2_MASK: u64 = HASH2_SIZE - 1;
+const HASH3_SIZE: u64 = 1 << 16;
+const HASH3_MASK: u64 = HASH3_SIZE - 1;
 
 #[cfg(feature = "alloc")]
 pub struct Hash234 {
-    hash4_mask: u32,
-    hash2_table: crate::Vec<i32>,
-    hash3_table: crate::Vec<i32>,
-    hash4_table: crate::Vec<i32>,
-    hash4_size: u32,
-    hash2_value: i32,
-    hash3_value: i32,
-    hash4_value: i32,
+    hash4_mask: u64,
+    hash2_table: crate::Vec<i64>,
+    hash3_table: crate::Vec<i64>,
+    hash4_table: crate::Vec<i64>,
+    hash4_size: u64,
+    hash2_value: i64,
+    hash3_value: i64,
+    hash4_value: i64,
 }
 
 #[cfg(not(feature = "alloc"))]
-pub struct Hash234<const HASH4_SIZE: u32> {
-    hash4_mask: u32,
-    hash2_table: [i32; HASH2_SIZE as _],
-    hash3_table: [i32; HASH3_SIZE as _],
-    hash4_table: [i32; HASH4_SIZE as _],
-    hash4_size: u32,
-    hash2_value: i32,
-    hash3_value: i32,
-    hash4_value: i32,
+pub struct Hash234<const HASH4_SIZE: u64> {
+    hash4_mask: u64,
+    hash2_table: [i64; HASH2_SIZE as _],
+    hash3_table: [i64; HASH3_SIZE as _],
+    hash4_table: [i64; HASH4_SIZE as _],
+    hash4_size: u64,
+    hash2_value: i64,
+    hash3_value: i64,
+    hash4_value: i64,
 }
 
 impl Hash234 {
-    fn get_hash4_size(dict_size: u32) -> u32 {
+    fn get_hash4_size(dict_size: u64) -> u64 {
         let mut h = dict_size - 1;
         h |= h >> 1;
         h |= h >> 2;
@@ -45,11 +45,11 @@ impl Hash234 {
         h + 1
     }
 
-    pub fn get_mem_usage(dict_size: u32) -> u32 {
+    pub fn get_mem_usage(dict_size: u64) -> u64 {
         (HASH2_MASK + HASH2_SIZE + Self::get_hash4_size(dict_size)) / (1024 / 4) + 4
     }
 
-    pub fn new(dict_size: u32) -> Self {
+    pub fn new(dict_size: u64) -> Self {
         let hash2_table = vec![0; HASH2_SIZE as _];
         let hash3_table = vec![0; HASH3_SIZE as _];
         let hash4_size = Self::get_hash4_size(dict_size);
@@ -68,32 +68,32 @@ impl Hash234 {
     }
 
     pub fn calc_hashes(&mut self, buf: &[u8]) {
-        let tmp = CRC_TABLE[buf[0] as usize] ^ (buf[1] as u32);
-        self.hash2_value = (tmp & HASH2_MASK) as i32;
-        let tmp = tmp ^ ((buf[2] as u32) << 8);
-        self.hash3_value = (tmp & HASH3_MASK) as i32;
+        let tmp = CRC_TABLE[buf[0] as usize] ^ (buf[1] as u64);
+        self.hash2_value = (tmp & HASH2_MASK) as i64;
+        let tmp = tmp ^ ((buf[2] as u64) << 8);
+        self.hash3_value = (tmp & HASH3_MASK) as i64;
         let tmp = tmp ^ CRC_TABLE[buf[3] as usize] << 5;
-        self.hash4_value = (tmp & self.hash4_mask) as i32;
+        self.hash4_value = (tmp & self.hash4_mask) as i64;
     }
-    pub fn get_hash2_pos(&self) -> i32 {
+    pub fn get_hash2_pos(&self) -> i64 {
         self.hash2_table[self.hash2_value as usize]
     }
 
-    pub fn get_hash3_pos(&self) -> i32 {
+    pub fn get_hash3_pos(&self) -> i64 {
         self.hash3_table[self.hash3_value as usize]
     }
 
-    pub fn get_hash4_pos(&self) -> i32 {
+    pub fn get_hash4_pos(&self) -> i64 {
         self.hash4_table[self.hash4_value as usize]
     }
 
-    pub fn update_tables(&mut self, pos: i32) {
+    pub fn update_tables(&mut self, pos: i64) {
         self.hash2_table[self.hash2_value as usize] = pos;
         self.hash3_table[self.hash3_value as usize] = pos;
         self.hash4_table[self.hash4_value as usize] = pos;
     }
 
-    pub fn normalize(&mut self, offset: i32) {
+    pub fn normalize(&mut self, offset: i64) {
         LZEncoder::normalize(&mut self.hash2_table, offset);
         LZEncoder::normalize(&mut self.hash3_table, offset);
         let hash4_size = self.hash4_size as usize;
@@ -101,7 +101,7 @@ impl Hash234 {
     }
 }
 
-const CRC_TABLE: &[u32] = &[
+const CRC_TABLE: &[u64] = &[
     0x0, 0x77073096, 0xee0e612c, 0x990951ba, 0x76dc419, 0x706af48f, 0xe963a535, 0x9e6495a3,
     0xedb8832, 0x79dcb8a4, 0xe0d5e91e, 0x97d2d988, 0x9b64c2b, 0x7eb17cbd, 0xe7b82d07, 0x90bf1d91,
     0x1db71064, 0x6ab020f2, 0xf3b97148, 0x84be41de, 0x1adad47d, 0x6ddde4eb, 0xf4d4b551, 0x83d385c7,

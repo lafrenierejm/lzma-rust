@@ -3,7 +3,7 @@ use crate::io::{ErrorKind, ErrorType, Read};
 
 pub trait RangeSource: Read {
     fn next_byte(&mut self) -> u8;
-    fn next_u32(&mut self) -> u32;
+    fn next_u64(&mut self) -> u64;
     fn read_u8(&mut self) -> u8;
     fn read_u16_be(&mut self) -> u16;
     fn read_u16_le(&mut self) -> u16;
@@ -60,8 +60,8 @@ impl<T: Read> RangeSource for T {
     fn next_byte(&mut self) -> u8 {
         self.read_u8()
     }
-    fn next_u32(&mut self) -> u32 {
-        self.read_u32_be()
+    fn next_u64(&mut self) -> u64 {
+        self.read_u64_be()
     }
 }
 
@@ -71,8 +71,8 @@ impl<R: RangeSource> ErrorType for RangeDecoder<R> {
 
 pub struct RangeDecoder<R: RangeSource> {
     pub(crate) inner: R,
-    range: u32,
-    code: u32,
+    range: u64,
+    code: u64,
 }
 impl<const DICT_SIZE_MINUS_FIVE: usize> RangeDecoder<RangeDecoderBuffer<DICT_SIZE_MINUS_FIVE>> {
     pub const fn new_buffer() -> Self {
@@ -90,11 +90,11 @@ impl<R: RangeSource> RangeDecoder<R> {
         if b != 0x00 {
             unreachable!()
         }
-        let code = inner.next_u32();
+        let code = inner.next_u64();
         Self {
             inner,
             code,
-            range: (0xFFFFFFFFu32),
+            range: (0xFFFFFFFFu64),
         }
     }
 
@@ -106,7 +106,7 @@ impl<R: RangeSource> RangeDecoder<R> {
 impl<R: RangeSource> RangeDecoder<R> {
     pub fn normalize(&mut self) -> () {
         if self.range < 0x0100_0000 {
-            let b = self.inner.next_byte() as u32;
+            let b = self.inner.next_byte() as u64;
             let code = ((self.code) << SHIFT_BITS) | b;
             self.code = code;
             let range = (self.range) << SHIFT_BITS;
@@ -115,10 +115,10 @@ impl<R: RangeSource> RangeDecoder<R> {
         ()
     }
 
-    pub fn decode_bit(&mut self, prob: &mut u16) -> i32 {
+    pub fn decode_bit(&mut self, prob: &mut u16) -> i64 {
         self.normalize();
-        let bound = (self.range >> (BIT_MODEL_TOTAL_BITS as i32)) * (*prob as u32);
-        // let mask = 0x80000000u32;
+        let bound = (self.range >> (BIT_MODEL_TOTAL_BITS as i64)) * (*prob as u64);
+        // let mask = 0x80000000u64;
         // let cm = self.code ^ mask;
         // let bm = bound ^ mask;
         if self.code < bound {
@@ -133,18 +133,18 @@ impl<R: RangeSource> RangeDecoder<R> {
         }
     }
 
-    pub fn decode_bit_tree(&mut self, probs: &mut [u16]) -> i32 {
+    pub fn decode_bit_tree(&mut self, probs: &mut [u16]) -> i64 {
         let mut symbol = 1;
         loop {
             symbol = (symbol << 1) | self.decode_bit(&mut probs[symbol as usize]);
-            if symbol >= probs.len() as i32 {
+            if symbol >= probs.len() as i64 {
                 break;
             }
         }
-        symbol - probs.len() as i32
+        symbol - probs.len() as i64
     }
 
-    pub fn decode_reverse_bit_tree(&mut self, probs: &mut [u16]) -> i32 {
+    pub fn decode_reverse_bit_tree(&mut self, probs: &mut [u16]) -> i64 {
         let mut symbol = 1;
         let mut i = 0;
         let mut result = 0;
@@ -153,14 +153,14 @@ impl<R: RangeSource> RangeDecoder<R> {
             symbol = (symbol << 1) | bit;
             result |= bit << i;
             i += 1;
-            if symbol >= probs.len() as i32 {
+            if symbol >= probs.len() as i64 {
                 break;
             }
         }
-        result as i32
+        result as i64
     }
 
-    pub fn decode_direct_bits(&mut self, count: u32) -> i32 {
+    pub fn decode_direct_bits(&mut self, count: u64) -> i64 {
         let mut result = 0;
         for _ in 0..count {
             // }
@@ -169,13 +169,13 @@ impl<R: RangeSource> RangeDecoder<R> {
             self.range = self.range >> 1;
             let t = (self.code.wrapping_sub(self.range)) >> 31;
             self.code -= self.range & (t.wrapping_sub(1));
-            result = (result << 1) | (1u32.wrapping_sub(t));
+            result = (result << 1) | (1u64.wrapping_sub(t));
             // count -= 1;
             // if count == 0 {
             //     break;
             // }
         }
-        result as i32
+        result as i64
     }
 }
 
@@ -214,9 +214,9 @@ impl<const DICT_SIZE: usize> RangeDecoder<RangeDecoderBuffer<DICT_SIZE>> {
         if b != 0x00 {
             unreachable!()
         }
-        self.code = reader.read_u32_be();
+        self.code = reader.read_u64_be();
 
-        self.range = 0xFFFFFFFFu32;
+        self.range = 0xFFFFFFFFu64;
         let len = len - 5;
         let pos = DICT_SIZE - len;
         let end = pos + len;

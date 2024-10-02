@@ -198,8 +198,8 @@ pub mod io {
     pub(crate) use super::io_alloc::*;
 }
 
-pub const DICT_SIZE_MIN: u32 = 4096;
-pub const DICT_SIZE_MAX: u32 = u32::MAX & !15_u32;
+pub const DICT_SIZE_MIN: u64 = 4096;
+pub const DICT_SIZE_MAX: u64 = u64::MAX & !15_u64;
 
 const LOW_SYMBOLS: usize = 1 << 3;
 const MID_SYMBOLS: usize = 1 << 3;
@@ -224,20 +224,20 @@ const ALIGN_MASK: usize = ALIGN_SIZE - 1;
 
 const REPS: usize = 4;
 
-const SHIFT_BITS: u32 = 8;
+const SHIFT_BITS: u64 = 8;
 #[cfg(feature = "alloc")]
-const TOP_MASK: u32 = 0xFF000000;
-const BIT_MODEL_TOTAL_BITS: u32 = 11;
-const BIT_MODEL_TOTAL: u32 = 1 << BIT_MODEL_TOTAL_BITS;
+const TOP_MASK: u64 = 0xFF000000;
+const BIT_MODEL_TOTAL_BITS: u64 = 11;
+const BIT_MODEL_TOTAL: u64 = 1 << BIT_MODEL_TOTAL_BITS;
 const PROB_INIT: u16 = (BIT_MODEL_TOTAL / 2) as u16;
-const MOVE_BITS: u32 = 5;
+const MOVE_BITS: u64 = 5;
 const DIST_SPECIAL_INDEX: [usize; 10] = [0, 2, 4, 8, 12, 20, 28, 44, 60, 92];
 const DIST_SPECIAL_END: [usize; 10] = [2, 4, 8, 12, 20, 28, 44, 60, 92, 124];
 
 #[cfg(feature = "alloc")]
 pub struct LZMACoder {
-    pub(crate) pos_mask: u32,
-    pub(crate) reps: [i32; REPS],
+    pub(crate) pos_mask: u64,
+    pub(crate) reps: [i64; REPS],
     pub(crate) state: State,
     pub(crate) is_match: [[u16; POS_STATES_MAX]; state::STATES],
     pub(crate) is_rep: [u16; state::STATES],
@@ -263,8 +263,8 @@ pub const fn copy_from_slice<T: Copy>(dst: &mut [T], src: &[T]) {
 }
 
 #[cfg(not(feature = "alloc"))]
-pub struct LZMACoder<const PB: u32> {
-    pub(crate) reps: [i32; REPS],
+pub struct LZMACoder<const PB: u64> {
+    pub(crate) reps: [i64; REPS],
     pub(crate) state: State,
     pub(crate) is_match: [[u16; POS_STATES_MAX]; state::STATES],
     pub(crate) is_rep: [u16; state::STATES],
@@ -285,12 +285,12 @@ pub(crate) const fn coder_get_dict_size(len: usize) -> usize {
     }
 }
 #[cfg(feature = "alloc")]
-pub(crate) const fn get_dist_state(len: u32) -> u32 {
+pub(crate) const fn get_dist_state(len: u64) -> u64 {
     (if (len as usize) < DIST_STATES + MATCH_LEN_MIN {
         len as usize - MATCH_LEN_MIN
     } else {
         DIST_STATES - 1
-    }) as u32
+    }) as u64
 }
 
 #[cfg(feature = "alloc")]
@@ -342,11 +342,11 @@ impl LZMACoder {
 }
 
 #[cfg(not(feature = "alloc"))]
-impl<const PB: u32> LZMACoder<PB> {
-    const POS_MASK: u32 = (1 << PB) - 1;
+impl<const PB: u64> LZMACoder<PB> {
+    const POS_MASK: u64 = (1 << PB) - 1;
     pub const fn new() -> Self {
         let mut c = Self {
-            reps: [0i32; REPS],
+            reps: [0i64; REPS],
             state: State::new(),
             is_match: [[0u16; POS_STATES_MAX]; state::STATES],
             is_rep: [0u16; state::STATES],
@@ -398,12 +398,12 @@ pub(crate) const fn init_probs<const N: usize>(probs: &mut [u16; N]) {
 
 #[cfg(feature = "alloc")]
 pub(crate) struct LiteralCoder {
-    lc: u32,
-    literal_pos_mask: u32,
+    lc: u64,
+    literal_pos_mask: u64,
 }
 
 #[cfg(not(feature = "alloc"))]
-pub(crate) struct LiteralCoder<const LC: u32, const LP: u32>;
+pub(crate) struct LiteralCoder<const LC: u64, const LP: u64>;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct LiteralSubcoder {
@@ -424,13 +424,13 @@ impl LiteralSubcoder {
 
 #[cfg(feature = "alloc")]
 impl LiteralCoder {
-    pub fn new(lc: u32, lp: u32) -> Self {
+    pub fn new(lc: u64, lp: u64) -> Self {
         Self {
             lc,
             literal_pos_mask: (1 << lp) - 1,
         }
     }
-    pub(crate) fn get_sub_coder_index(&self, prev_byte: u32, pos: u32) -> u32 {
+    pub(crate) fn get_sub_coder_index(&self, prev_byte: u64, pos: u64) -> u64 {
         let low = prev_byte >> (8 - self.lc);
         let high = (pos & self.literal_pos_mask) << self.lc;
         low + high
@@ -438,12 +438,12 @@ impl LiteralCoder {
 }
 
 #[cfg(not(feature = "alloc"))]
-impl<const LC: u32, const LP: u32> LiteralCoder<LC, LP> {
-    const LITERAL_POS_MASK: u32 = (1 << LP) - 1;
+impl<const LC: u64, const LP: u64> LiteralCoder<LC, LP> {
+    const LITERAL_POS_MASK: u64 = (1 << LP) - 1;
     pub const fn new() -> Self {
         Self
     }
-    pub(crate) fn get_sub_coder_index(&self, prev_byte: u32, pos: u32) -> u32 {
+    pub(crate) fn get_sub_coder_index(&self, prev_byte: u64, pos: u64) -> u64 {
         let low = prev_byte >> (8 - LC);
         let high = (pos & Self::LITERAL_POS_MASK) << LC;
         low + high

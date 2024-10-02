@@ -5,7 +5,7 @@ use super::lz::LZDecoder;
 use super::range_dec::RangeDecoder;
 use super::*;
 
-pub const fn get_memory_usage_by_props(dict_size: u32, props_byte: u8) -> u32 {
+pub const fn get_memory_usage_by_props(dict_size: u64, props_byte: u8) -> u64 {
     if dict_size > DICT_SIZE_MAX {
         panic!("Dict size too large!");
     }
@@ -18,26 +18,26 @@ pub const fn get_memory_usage_by_props(dict_size: u32, props_byte: u8) -> u32 {
     get_memory_usage(dict_size, lc, lp)
 }
 
-pub const fn get_memory_usage(dict_size: u32, lc: u8, lp: u8) -> u32 {
+pub const fn get_memory_usage(dict_size: u64, lc: u8, lp: u8) -> u64 {
     if lc > 8 || lp > 4 {
         panic!("Invalid lc or lp");
     }
     10 + get_dict_size(dict_size) / 1024 + ((2 * 0x300) << (lc + lp)) / 1024
 }
 
-const fn get_dict_size(dict_size: u32) -> u32 {
+const fn get_dict_size(dict_size: u64) -> u64 {
     if dict_size > DICT_SIZE_MAX {
         panic!("Dict size too large!");
     }
-    let dict_size: u32 = if dict_size < 4096 { 4096 } else { dict_size };
+    let dict_size: u64 = if dict_size < 4096 { 4096 } else { dict_size };
     (dict_size + 15) & !15
 }
 
 pub struct LZMAReader<
     const DECODER_DICT_SIZE: usize,
-    const LC: u32,
-    const LP: u32,
-    const PB: u32,
+    const LC: u64,
+    const LP: u64,
+    const PB: u64,
     const NUM_SUBDECODERS: usize,
     R: Read,
 > {
@@ -49,19 +49,19 @@ pub struct LZMAReader<
     remaining_size: u64,
 }
 
-pub const fn get_decoder_dict_size(uncomp_size: u64, dict_size: u32) -> u32 {
+pub const fn get_decoder_dict_size(uncomp_size: u64, dict_size: u64) -> u64 {
     if dict_size > DICT_SIZE_MAX {
         panic!("Dict size too large!");
     }
-    let mut dict_size: u32 = get_dict_size(get_dict_size(dict_size));
+    let mut dict_size: u64 = get_dict_size(get_dict_size(dict_size));
     if uncomp_size <= u64::MAX / 2 && dict_size as u64 > uncomp_size {
-        dict_size = get_dict_size(uncomp_size as u32);
+        dict_size = get_dict_size(uncomp_size as u64);
     }
 
     get_dict_size(dict_size)
 }
 
-pub const fn get_lc_lp_pb_props(props: u8) -> (u32, u32, u32, u32) {
+pub const fn get_lc_lp_pb_props(props: u8) -> (u64, u64, u64, u64) {
     if props > (4 * 5 + 4) * 9 + 8 {
         panic!("Invalid props byte");
     }
@@ -69,20 +69,20 @@ pub const fn get_lc_lp_pb_props(props: u8) -> (u32, u32, u32, u32) {
     let props: u8 = props - (pb * 9 * 5);
     let lp: u8 = props / 9;
     let lc: u8 = props - lp * 9;
-    let lc: u32 = lc as u32;
-    let lp: u32 = lp as u32;
-    let pb: u32 = pb as u32;
+    let lc: u64 = lc as u64;
+    let lp: u64 = lp as u64;
+    let pb: u64 = pb as u64;
     if lc > 8 || lp > 4 || pb > 4 {
         panic!("Invalid lc or lp or pb");
     }
-    (lc, lp, pb as u32, props as u32)
+    (lc, lp, pb as u64, props as u64)
 }
 
 impl<
         const DECODER_DICT_SIZE: usize,
-        const LC: u32,
-        const LP: u32,
-        const PB: u32,
+        const LC: u64,
+        const LP: u64,
+        const PB: u64,
         const NUM_SUBDECODERS: usize,
         R: Read,
     > Drop for LZMAReader<DECODER_DICT_SIZE, LC, LP, PB, NUM_SUBDECODERS, R>
@@ -94,9 +94,9 @@ impl<
 
 impl<
         const DECODER_DICT_SIZE: usize,
-        const LC: u32,
-        const LP: u32,
-        const PB: u32,
+        const LC: u64,
+        const LP: u64,
+        const PB: u64,
         const NUM_SUBDECODERS: usize,
         R: Read,
     > ErrorType for LZMAReader<DECODER_DICT_SIZE, LC, LP, PB, NUM_SUBDECODERS, R>
@@ -106,9 +106,9 @@ impl<
 
 impl<
         const DECODER_DICT_SIZE: usize,
-        const LC: u32,
-        const LP: u32,
-        const PB: u32,
+        const LC: u64,
+        const LP: u64,
+        const PB: u64,
         const NUM_SUBDECODERS: usize,
         R: Read,
     > LZMAReader<DECODER_DICT_SIZE, LC, LP, PB, NUM_SUBDECODERS, R>
@@ -160,17 +160,17 @@ impl<
             return 0;
         }
         let mut size = 0;
-        let mut len = buf.len() as u32;
-        let mut off = 0u32;
+        let mut len = buf.len() as u64;
+        let mut off = 0u64;
         while len > 0 {
-            let mut copy_size_max = len as u32;
-            if self.remaining_size <= u64::MAX / 2 && (self.remaining_size as u32) < len {
-                copy_size_max = self.remaining_size as u32;
+            let mut copy_size_max = len as u64;
+            if self.remaining_size <= u64::MAX / 2 && (self.remaining_size as u64) < len {
+                copy_size_max = self.remaining_size as u64;
             }
             self.lz.set_limit(copy_size_max as usize);
 
             self.lzma.decode(&mut self.lz, &mut self.rc);
-            let copied_size = self.lz.flush(buf, off as _) as u32;
+            let copied_size = self.lz.flush(buf, off as _) as u64;
             off += copied_size;
             len -= copied_size;
             size += copied_size;
@@ -196,9 +196,9 @@ impl<
 
 impl<
         const DECODER_DICT_SIZE: usize,
-        const LC: u32,
-        const LP: u32,
-        const PB: u32,
+        const LC: u64,
+        const LP: u64,
+        const PB: u64,
         const NUM_SUBDECODERS: usize,
         R: Read,
     > Read for LZMAReader<DECODER_DICT_SIZE, LC, LP, PB, NUM_SUBDECODERS, R>

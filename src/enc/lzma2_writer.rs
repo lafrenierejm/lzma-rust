@@ -11,14 +11,14 @@ use super::{
 
 #[derive(Debug, Clone)]
 pub struct LZMA2Options {
-    pub dict_size: u32,
-    pub lc: u32,
-    pub lp: u32,
-    pub pb: u32,
+    pub dict_size: u64,
+    pub lc: u64,
+    pub lp: u64,
+    pub pb: u64,
     pub mode: EncodeMode,
-    pub nice_len: u32,
+    pub nice_len: u64,
     pub mf: MFType,
-    pub depth_limit: i32,
+    pub depth_limit: i64,
     pub preset_dict: Option<crate::Vec<u8>>,
 }
 
@@ -28,13 +28,13 @@ impl Default for LZMA2Options {
     }
 }
 impl LZMA2Options {
-    pub const LC_DEFAULT: u32 = 3;
-    pub const LP_DEFAULT: u32 = 0;
-    pub const PB_DEFAULT: u32 = 2;
-    pub const NICE_LEN_MAX: u32 = 273;
-    pub const NICE_LEN_MIN: u32 = 8;
-    pub const DICT_SIZE_DEFAULT: u32 = 8 << 20;
-    const PRESET_TO_DICT_SIZE: &'static [u32] = &[
+    pub const LC_DEFAULT: u64 = 3;
+    pub const LP_DEFAULT: u64 = 0;
+    pub const PB_DEFAULT: u64 = 2;
+    pub const NICE_LEN_MAX: u64 = 273;
+    pub const NICE_LEN_MIN: u64 = 8;
+    pub const DICT_SIZE_DEFAULT: u64 = 8 << 20;
+    const PRESET_TO_DICT_SIZE: &'static [u64] = &[
         1 << 18,
         1 << 20,
         1 << 21,
@@ -46,17 +46,17 @@ impl LZMA2Options {
         1 << 25,
         1 << 26,
     ];
-    const PRESET_TO_DEPTH_LIMIT: &'static [i32] = &[4, 8, 24, 48];
+    const PRESET_TO_DEPTH_LIMIT: &'static [i64] = &[4, 8, 24, 48];
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        dict_size: u32,
-        lc: u32,
-        lp: u32,
-        pb: u32,
+        dict_size: u64,
+        lc: u64,
+        lp: u64,
+        pb: u64,
         mode: EncodeMode,
-        nice_len: u32,
+        nice_len: u64,
         mf: MFType,
-        depth_limit: i32,
+        depth_limit: i64,
     ) -> Self {
         Self {
             dict_size,
@@ -73,7 +73,7 @@ impl LZMA2Options {
 
     /// preset: [0..9]
     #[inline]
-    pub fn with_preset(preset: u32) -> Self {
+    pub fn with_preset(preset: u64) -> Self {
         let mut opt = Self {
             dict_size: Default::default(),
             lc: Default::default(),
@@ -90,7 +90,7 @@ impl LZMA2Options {
     }
 
     /// preset: [0..9]
-    pub fn set_preset(&mut self, preset: u32) {
+    pub fn set_preset(&mut self, preset: u64) {
         if preset > 9 {
             return;
         }
@@ -117,7 +117,7 @@ impl LZMA2Options {
         }
     }
 
-    pub fn get_memory_usage(&self) -> u32 {
+    pub fn get_memory_usage(&self) -> u64 {
         let dict_size = self.dict_size;
         let extra_size_before = get_extra_size_before(dict_size);
         70 + LZMAEncoder::get_mem_usage(self.mode, dict_size, extra_size_before, self.mf)
@@ -128,8 +128,8 @@ impl LZMA2Options {
         ((self.pb * 5 + self.lp) * 9 + self.lc) as u8
     }
 }
-const COMPRESSED_SIZE_MAX: u32 = 64 << 10;
-pub fn get_extra_size_before(dict_size: u32) -> u32 {
+const COMPRESSED_SIZE_MAX: u64 = 64 << 10;
+pub fn get_extra_size_before(dict_size: u64) -> u64 {
     if COMPRESSED_SIZE_MAX > dict_size {
         COMPRESSED_SIZE_MAX - dict_size
     } else {
@@ -156,7 +156,7 @@ pub struct LZMA2Writer<W: Write> {
     dict_reset_needed: bool,
     state_reset_needed: bool,
     props_needed: bool,
-    pending_size: u32,
+    pending_size: u64,
     finished: bool,
 }
 
@@ -197,8 +197,8 @@ impl<W: Write> LZMA2Writer<W> {
 
     fn write_lzma(
         &mut self,
-        uncompressed_size: u32,
-        compressed_size: u32,
+        uncompressed_size: u64,
+        compressed_size: u64,
     ) -> crate::io::write_result!(W, ()) {
         let mut control = if self.props_needed {
             if self.dict_reset_needed {
@@ -234,7 +234,7 @@ impl<W: Write> LZMA2Writer<W> {
 
     fn write_uncompressed(
         &mut self,
-        mut uncompressed_size: u32,
+        mut uncompressed_size: u64,
     ) -> crate::io::write_result!(W, ()) {
         while uncompressed_size > 0 {
             let chunk_size = uncompressed_size.min(COMPRESSED_SIZE_MAX);
@@ -245,7 +245,7 @@ impl<W: Write> LZMA2Writer<W> {
             self.inner.write_all(&chunk_header)?;
             self.lzma.lz.copy_uncompressed(
                 &mut self.inner,
-                uncompressed_size as i32,
+                uncompressed_size as i64,
                 chunk_size as usize,
             )?;
             uncompressed_size -= chunk_size;
@@ -264,7 +264,7 @@ impl<W: Write> LZMA2Writer<W> {
                 )
             }
         }
-        .unwrap_or_default() as u32;
+        .unwrap_or_default() as u64;
         let mut uncompressed_size = self.lzma.data.uncompressed_size;
         assert!(compressed_size > 0);
         assert!(
@@ -339,7 +339,7 @@ impl<W: Write> Write for LZMA2Writer<W> {
             let used = self.lzma.lz.fill_window(&buf[off..(off + len)]);
             off += used;
             len -= used;
-            self.pending_size += used as u32;
+            self.pending_size += used as u64;
             if transmute_result_error_type!(
                 self.lzma.encode_for_lzma2(&mut self.rc, &mut self.mode),
                 bool,

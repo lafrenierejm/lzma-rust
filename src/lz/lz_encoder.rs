@@ -40,7 +40,7 @@ impl Default for MFType {
 }
 impl MFType {
     #[inline]
-    fn get_memory_usage(self, dict_size: u32) -> u32 {
+    fn get_memory_usage(self, dict_size: u64) -> u64 {
         match self {
             MFType::HC4 => HC4::get_mem_usage(dict_size),
             MFType::BT4 => BT4::get_mem_usage(dict_size),
@@ -54,23 +54,23 @@ pub struct LZEncoder {
 }
 
 pub struct LZEncoderData {
-    pub(crate) keep_size_before: u32,
-    pub(crate) keep_size_after: u32,
-    pub(crate) match_len_max: u32,
-    pub(crate) nice_len: u32,
+    pub(crate) keep_size_before: u64,
+    pub(crate) keep_size_after: u64,
+    pub(crate) match_len_max: u64,
+    pub(crate) nice_len: u64,
     pub(crate) buf: crate::Vec<u8>,
-    pub(crate) buf_size: u32,
-    pub(crate) read_pos: i32,
-    pub(crate) read_limit: i32,
+    pub(crate) buf_size: u64,
+    pub(crate) read_pos: i64,
+    pub(crate) read_limit: i64,
     pub(crate) finishing: bool,
-    pub(crate) write_pos: i32,
-    pub(crate) pending_size: u32,
+    pub(crate) write_pos: i64,
+    pub(crate) pending_size: u64,
 }
 
 pub struct Matches {
-    pub len: crate::Vec<u32>,
-    pub dist: crate::Vec<i32>,
-    pub count: u32,
+    pub len: crate::Vec<u64>,
+    pub dist: crate::Vec<i64>,
+    pub count: u64,
 }
 impl Matches {
     pub fn new(count_max: usize) -> Self {
@@ -84,12 +84,12 @@ impl Matches {
 
 impl LZEncoder {
     pub fn get_memory_usage(
-        dict_size: u32,
-        extra_size_before: u32,
-        extra_size_after: u32,
-        match_len_max: u32,
+        dict_size: u64,
+        extra_size_before: u64,
+        extra_size_after: u64,
+        match_len_max: u64,
         mf: MFType,
-    ) -> u32 {
+    ) -> u64 {
         get_buf_size(
             dict_size,
             extra_size_before,
@@ -99,12 +99,12 @@ impl LZEncoder {
     }
 
     pub fn new_hc4(
-        dict_size: u32,
-        extra_size_before: u32,
-        extra_size_after: u32,
-        nice_len: u32,
-        match_len_max: u32,
-        depth_limit: i32,
+        dict_size: u64,
+        extra_size_before: u64,
+        extra_size_after: u64,
+        nice_len: u64,
+        match_len_max: u64,
+        depth_limit: i64,
     ) -> Self {
         Self::new(
             dict_size,
@@ -117,12 +117,12 @@ impl LZEncoder {
     }
 
     pub fn new_bt4(
-        dict_size: u32,
-        extra_size_before: u32,
-        extra_size_after: u32,
-        nice_len: u32,
-        match_len_max: u32,
-        depth_limit: i32,
+        dict_size: u64,
+        extra_size_before: u64,
+        extra_size_after: u64,
+        nice_len: u64,
+        match_len_max: u64,
+        depth_limit: i64,
     ) -> Self {
         Self::new(
             dict_size,
@@ -134,11 +134,11 @@ impl LZEncoder {
         )
     }
     fn new(
-        dict_size: u32,
-        extra_size_before: u32,
-        extra_size_after: u32,
-        nice_len: u32,
-        match_len_max: u32,
+        dict_size: u64,
+        extra_size_before: u64,
+        extra_size_after: u64,
+        nice_len: u64,
+        match_len_max: u64,
         match_finder: MatchFinders,
     ) -> Self {
         let buf_size = get_buf_size(
@@ -170,7 +170,7 @@ impl LZEncoder {
         }
     }
 
-    pub(super) fn normalize(positions: &mut [i32], norm_offset: i32) {
+    pub(super) fn normalize(positions: &mut [i64], norm_offset: i64) {
         for p in positions {
             if *p <= norm_offset {
                 *p = 0;
@@ -193,7 +193,7 @@ impl LZEncoder {
         self.match_finder.skip(&mut self.data, len)
     }
 
-    pub fn set_preset_dict(&mut self, dict_size: u32, preset_dict: &[u8]) {
+    pub fn set_preset_dict(&mut self, dict_size: u64, preset_dict: &[u8]) {
         self.data
             .set_preset_dict(dict_size, preset_dict, &mut self.match_finder)
     }
@@ -223,7 +223,7 @@ impl LZEncoderData {
     }
     fn set_preset_dict(
         &mut self,
-        dict_size: u32,
+        dict_size: u64,
         preset_dict: &[u8],
         match_finder: &mut dyn MatchFind,
     ) {
@@ -232,12 +232,12 @@ impl LZEncoderData {
         let copy_size = preset_dict.len().min(dict_size as usize);
         let offset = preset_dict.len() - copy_size;
         self.buf[0..copy_size].copy_from_slice(&preset_dict[offset..(offset + copy_size)]);
-        self.write_pos += copy_size as i32;
+        self.write_pos += copy_size as i64;
         match_finder.skip(self, copy_size);
     }
 
     fn move_window(&mut self) {
-        let move_offset = (self.read_pos + 1 - self.keep_size_before as i32) & !15;
+        let move_offset = (self.read_pos + 1 - self.keep_size_before as i64) & !15;
         let move_size = self.write_pos - move_offset;
         assert!(move_size >= 0);
         assert!(move_offset >= 0);
@@ -258,20 +258,20 @@ impl LZEncoderData {
 
     fn fill_window(&mut self, input: &[u8], match_finder: &mut dyn MatchFind) -> usize {
         assert!(!self.finishing);
-        if self.read_pos >= (self.buf_size as i32 - self.keep_size_after as i32) {
+        if self.read_pos >= (self.buf_size as i64 - self.keep_size_after as i64) {
             self.move_window();
         }
-        let len = if input.len() as i32 > self.buf_size as i32 - self.write_pos {
-            (self.buf_size as i32 - self.write_pos) as usize
+        let len = if input.len() as i64 > self.buf_size as i64 - self.write_pos {
+            (self.buf_size as i64 - self.write_pos) as usize
         } else {
             input.len()
         };
         let d_start = self.write_pos as usize;
         let d_end = d_start + len;
         self.buf[d_start..d_end].copy_from_slice(&input[..len]);
-        self.write_pos += len as i32;
-        if self.write_pos >= self.keep_size_after as i32 {
-            self.read_limit = self.write_pos - self.keep_size_after as i32;
+        self.write_pos += len as i64;
+        if self.write_pos >= self.keep_size_after as i64 {
+            self.read_limit = self.write_pos - self.keep_size_after as i64;
         }
         self.process_pending_bytes(match_finder);
         len
@@ -279,7 +279,7 @@ impl LZEncoderData {
 
     fn process_pending_bytes(&mut self, match_finder: &mut dyn MatchFind) {
         if self.pending_size > 0 && self.read_pos < self.read_limit {
-            self.read_pos -= self.pending_size as i32;
+            self.read_pos -= self.pending_size as i64;
             let old_pending = self.pending_size;
             self.pending_size = 0;
             match_finder.skip(self, old_pending as _);
@@ -297,34 +297,34 @@ impl LZEncoderData {
         self.process_pending_bytes(match_finder);
     }
 
-    pub fn has_enough_data(&self, already_read_len: i32) -> bool {
+    pub fn has_enough_data(&self, already_read_len: i64) -> bool {
         self.read_pos - already_read_len < self.read_limit
     }
     pub fn copy_uncompressed<W: Write>(
         &self,
         out: &mut W,
-        backward: i32,
+        backward: i64,
         len: usize,
     ) -> crate::io::write_result!(W, ()) {
         let start = (self.read_pos + 1 - backward) as usize;
         out.write_all(&self.buf[start..(start + len)])
     }
 
-    pub fn get_avail(&self) -> i32 {
+    pub fn get_avail(&self) -> i64 {
         assert_ne!(self.read_pos, -1);
         self.write_pos - self.read_pos
     }
 
-    pub fn get_pos(&self) -> i32 {
+    pub fn get_pos(&self) -> i64 {
         self.read_pos
     }
 
-    pub fn get_byte(&self, forward: i32, backward: i32) -> u8 {
+    pub fn get_byte(&self, forward: i64, backward: i64) -> u8 {
         let start = self.read_pos + forward - backward;
         self.buf[start as usize]
     }
 
-    pub fn get_byte_backward(&self, backward: i32) -> u8 {
+    pub fn get_byte_backward(&self, backward: i64) -> u8 {
         self.buf[(self.read_pos - backward) as usize]
     }
 
@@ -332,7 +332,7 @@ impl LZEncoderData {
         self.buf[self.read_pos as usize]
     }
 
-    pub fn get_match_len(&self, dist: i32, len_limit: i32) -> usize {
+    pub fn get_match_len(&self, dist: i64, len_limit: i64) -> usize {
         let back_pos = self.read_pos - dist - 1;
         let mut len = 0;
 
@@ -345,7 +345,7 @@ impl LZEncoderData {
         len as usize
     }
 
-    pub fn get_match_len2(&self, forward: i32, dist: i32, len_limit: i32) -> u32 {
+    pub fn get_match_len2(&self, forward: i64, dist: i64, len_limit: i64) -> u64 {
         let cur_pos = (self.read_pos + forward) as usize;
         let back_pos = cur_pos - dist as usize - 1;
         let mut len = 0;
@@ -359,7 +359,7 @@ impl LZEncoderData {
     }
 
     fn verify_matches(&self, matches: &Matches) -> bool {
-        let len_limit = self.get_avail().min(self.match_len_max as i32);
+        let len_limit = self.get_avail().min(self.match_len_max as i64);
         for i in 0..matches.count as usize {
             if self.get_match_len(matches.dist[i], len_limit) != matches.len[i] as _ {
                 return false;
@@ -370,9 +370,9 @@ impl LZEncoderData {
 
     pub(super) fn move_pos(
         &mut self,
-        required_for_flushing: i32,
-        required_for_finishing: i32,
-    ) -> i32 {
+        required_for_flushing: i64,
+        required_for_finishing: i64,
+    ) -> i64 {
         assert!(required_for_flushing >= required_for_finishing);
         self.read_pos += 1;
         let mut avail = self.write_pos - self.read_pos;
@@ -392,11 +392,11 @@ impl Deref for LZEncoder {
 }
 
 fn get_buf_size(
-    dict_size: u32,
-    extra_size_before: u32,
-    extra_size_after: u32,
-    match_len_max: u32,
-) -> u32 {
+    dict_size: u64,
+    extra_size_before: u64,
+    extra_size_after: u64,
+    match_len_max: u64,
+) -> u64 {
     let keep_size_before = extra_size_before + dict_size;
     let keep_size_after = extra_size_after + match_len_max;
     let reserve_size = (dict_size / 2 + (256 << 10)).min(512 << 20);

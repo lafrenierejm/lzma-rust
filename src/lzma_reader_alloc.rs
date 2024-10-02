@@ -7,7 +7,7 @@ use super::lz::LZDecoder;
 use super::range_dec::RangeDecoder;
 use super::*;
 
-pub fn get_memory_usage_by_props(dict_size: u32, props_byte: u8) -> Result<u32> {
+pub fn get_memory_usage_by_props(dict_size: u64, props_byte: u8) -> Result<u64> {
     if dict_size > DICT_SIZE_MAX {
         return error!(ErrorKind::InvalidInput, "dict size too large");
     }
@@ -17,16 +17,16 @@ pub fn get_memory_usage_by_props(dict_size: u32, props_byte: u8) -> Result<u32> 
     let props = props_byte % (9 * 5);
     let lp = props / 9;
     let lc = props - lp * 9;
-    get_memory_usage(dict_size, lc as u32, lp as u32)
+    get_memory_usage(dict_size, lc as u64, lp as u64)
 }
-pub fn get_memory_usage(dict_size: u32, lc: u32, lp: u32) -> Result<u32> {
+pub fn get_memory_usage(dict_size: u64, lc: u64, lp: u64) -> Result<u64> {
     if lc > 8 || lp > 4 {
         return error!(ErrorKind::InvalidInput, "Invalid lc or lp");
     }
     Ok(10 + get_dict_size(dict_size)? / 1024 + ((2 * 0x300) << (lc + lp)) / 1024)
 }
 
-fn get_dict_size(dict_size: u32) -> Result<u32> {
+fn get_dict_size(dict_size: u64) -> Result<u64> {
     if dict_size > DICT_SIZE_MAX {
         return error!(ErrorKind::InvalidInput, "dict size too large");
     }
@@ -95,7 +95,7 @@ impl<R: Read> LZMAReader<R> {
         reader: R,
         uncomp_size: u64,
         mut props: u8,
-        dict_size: u32,
+        dict_size: u64,
         preset_dict: Option<&[u8]>,
     ) -> Result<Self> {
         if props > (4 * 5 + 4) * 9 + 8 {
@@ -122,10 +122,10 @@ impl<R: Read> LZMAReader<R> {
     fn construct2(
         reader: R,
         uncomp_size: u64,
-        lc: u32,
-        lp: u32,
-        pb: u32,
-        dict_size: u32,
+        lc: u64,
+        lp: u64,
+        pb: u64,
+        dict_size: u64,
         preset_dict: Option<&[u8]>,
     ) -> Result<Self> {
         if lc > 8 || lp > 4 || pb > 4 {
@@ -133,7 +133,7 @@ impl<R: Read> LZMAReader<R> {
         }
         let mut dict_size = get_dict_size(dict_size)?;
         if uncomp_size <= u64::MAX / 2 && dict_size as u64 > uncomp_size {
-            dict_size = get_dict_size(uncomp_size as u32)?;
+            dict_size = get_dict_size(uncomp_size as u64)?;
         }
         let rc = RangeDecoder::new_stream(reader);
         let rc = match rc {
@@ -169,15 +169,15 @@ impl<R: Read> LZMAReader<R> {
 
     ///
     /// Creates a new .lzma file format decompressor with an optional memory usage limit.
-    /// - [mem_limit_kb] - memory usage limit in kibibytes (KiB). u32::MAX means no limit.
+    /// - [mem_limit_kb] - memory usage limit in kibibytes (KiB). u64::MAX means no limit.
     /// - [preset_dict] - preset dictionary or None to use no preset dictionary.
     pub fn new_mem_limit(
         mut reader: R,
-        mem_limit_kb: u32,
+        mem_limit_kb: u64,
         preset_dict: Option<&[u8]>,
     ) -> crate::io::read_exact_result!(R, Self) {
         let props = read_u8(&mut reader)?;
-        let dict_size = read_u32_le(&mut reader)?;
+        let dict_size = read_u64_le(&mut reader)?;
 
         let uncomp_size = read_u64_le(&mut reader)?;
         let need_mem = match get_memory_usage_by_props(dict_size, props) {
@@ -209,7 +209,7 @@ impl<R: Read> LZMAReader<R> {
         reader: R,
         uncomp_size: u64,
         props: u8,
-        dict_size: u32,
+        dict_size: u64,
         preset_dict: Option<&[u8]>,
     ) -> Result<Self> {
         Self::construct1(reader, uncomp_size, props, dict_size, preset_dict)
@@ -226,10 +226,10 @@ impl<R: Read> LZMAReader<R> {
     pub fn new(
         reader: R,
         uncomp_size: u64,
-        lc: u32,
-        lp: u32,
-        pb: u32,
-        dict_size: u32,
+        lc: u64,
+        lp: u64,
+        pb: u64,
+        dict_size: u64,
         preset_dict: Option<&[u8]>,
     ) -> Result<Self> {
         Self::construct2(reader, uncomp_size, lc, lp, pb, dict_size, preset_dict)
@@ -243,12 +243,12 @@ impl<R: Read> LZMAReader<R> {
             return Ok(0);
         }
         let mut size = 0;
-        let mut len = buf.len() as u32;
-        let mut off = 0u32;
+        let mut len = buf.len() as u64;
+        let mut off = 0u64;
         while len > 0 {
             let mut copy_size_max = len;
-            if self.remaining_size <= u64::MAX / 2 && (self.remaining_size as u32) < len {
-                copy_size_max = self.remaining_size as u32;
+            if self.remaining_size <= u64::MAX / 2 && (self.remaining_size as u64) < len {
+                copy_size_max = self.remaining_size as u64;
             }
             self.lz.set_limit(copy_size_max as usize);
 
@@ -263,7 +263,7 @@ impl<R: Read> LZMAReader<R> {
                 }
             }
 
-            let copied_size = self.lz.flush(buf, off as _) as u32;
+            let copied_size = self.lz.flush(buf, off as _) as u64;
             off += copied_size;
             len -= copied_size;
             size += copied_size;

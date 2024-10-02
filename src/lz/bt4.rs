@@ -3,29 +3,29 @@ use crate::vec;
 
 pub struct BT4 {
     hash: Hash234,
-    tree: crate::Vec<i32>,
-    depth_limit: i32,
+    tree: crate::Vec<i64>,
+    depth_limit: i64,
 
-    cyclic_size: i32,
-    cyclic_pos: i32,
-    lz_pos: i32,
+    cyclic_size: i64,
+    cyclic_pos: i64,
+    lz_pos: i64,
 }
 
-const MAX_POS: i32 = 0x7fffffff;
+const MAX_POS: i64 = 0x7fffffff;
 #[inline(always)]
-fn sh_left(i: i32) -> i32 {
-    ((i as u32) << 1) as i32
+fn sh_left(i: i64) -> i64 {
+    ((i as u64) << 1) as i64
 }
 impl BT4 {
-    pub fn new(dict_size: u32, nice_len: u32, depth_limit: i32) -> Self {
-        let cyclic_size = dict_size as i32 + 1;
+    pub fn new(dict_size: u64, nice_len: u64, depth_limit: i64) -> Self {
+        let cyclic_size = dict_size as i64 + 1;
         Self {
             hash: Hash234::new(dict_size),
             tree: vec![0; cyclic_size as usize * 2],
             depth_limit: if depth_limit > 0 {
                 depth_limit
             } else {
-                16 + nice_len as i32 / 2
+                16 + nice_len as i64 / 2
             },
             cyclic_size,
             cyclic_pos: -1,
@@ -33,11 +33,11 @@ impl BT4 {
         }
     }
 
-    pub fn get_mem_usage(dict_size: u32) -> u32 {
+    pub fn get_mem_usage(dict_size: u64) -> u64 {
         Hash234::get_mem_usage(dict_size) + dict_size / (1024 / 8) + 10
     }
 
-    fn move_pos(&mut self, encoder: &mut super::LZEncoderData) -> i32 {
+    fn move_pos(&mut self, encoder: &mut super::LZEncoderData) -> i64 {
         let avail = encoder.move_pos(encoder.nice_len as _, 4);
         if avail != 0 {
             self.lz_pos += 1;
@@ -61,8 +61,8 @@ impl BT4 {
     fn skip(
         &mut self,
         encoder: &mut super::LZEncoderData,
-        nice_len_limit: i32,
-        mut current_match: i32,
+        nice_len_limit: i64,
+        mut current_match: i64,
     ) {
         let mut depth = self.depth_limit;
 
@@ -133,8 +133,8 @@ impl MatchFind for BT4 {
     fn find_matches(&mut self, encoder: &mut super::LZEncoderData, matches: &mut Matches) {
         matches.count = 0;
 
-        let mut match_len_limit = encoder.match_len_max as i32;
-        let mut nice_len_limit = encoder.nice_len as i32;
+        let mut match_len_limit = encoder.match_len_max as i64;
+        let mut nice_len_limit = encoder.nice_len as i64;
         let avail = self.move_pos(encoder);
 
         if avail < match_len_limit {
@@ -191,7 +191,7 @@ impl MatchFind for BT4 {
                 len_best += 1;
             }
             let c = matches.count as usize - 1;
-            matches.len[c] = len_best as u32;
+            matches.len[c] = len_best as u64;
 
             // Return if it is long enough (niceLen or reached the end of
             // the dictionary).
@@ -281,13 +281,13 @@ impl MatchFind for BT4 {
     }
 
     fn skip(&mut self, encoder: &mut super::LZEncoderData, len: usize) {
-        let mut len = len as i32;
+        let mut len = len as i64;
         while {
             let n = len > 0;
             len -= 1;
             n
         } {
-            let mut nice_len_limit = encoder.nice_len as i32;
+            let mut nice_len_limit = encoder.nice_len as i64;
             let avail = self.move_pos(encoder);
 
             if avail < nice_len_limit {

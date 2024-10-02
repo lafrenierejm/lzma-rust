@@ -6,7 +6,7 @@ use super::{
 use crate::io::{error, read_exact_error_kind, ErrorKind, Read};
 #[cfg(feature = "no_std")]
 use embedded_io::Error;
-pub const COMPRESSED_SIZE_MAX: u32 = 1 << 16;
+pub const COMPRESSED_SIZE_MAX: u64 = 1 << 16;
 use crate::range_dec::RangeSource;
 
 /// Decompresses a raw LZMA2 stream (no XZ headers).
@@ -38,12 +38,12 @@ pub struct LZMA2Reader<R> {
     error: Option<(ErrorKind, String)>,
 }
 #[inline]
-pub fn get_memory_usage(dict_size: u32) -> u32 {
+pub fn get_memory_usage(dict_size: u64) -> u64 {
     40 + COMPRESSED_SIZE_MAX / 1024 + get_dict_size(dict_size) / 1024
 }
 
 #[inline]
-fn get_dict_size(dict_size: u32) -> u32 {
+fn get_dict_size(dict_size: u64) -> u64 {
     (dict_size + 15) & !15
 }
 
@@ -65,7 +65,7 @@ impl<R: Read> LZMA2Reader<R> {
     /// Create a new LZMA2 reader.
     /// `inner` is the reader to read compressed data from.
     /// `dict_size` is the dictionary size in bytes.
-    pub fn new(inner: R, dict_size: u32, preset_dict: Option<&[u8]>) -> Self {
+    pub fn new(inner: R, dict_size: u64, preset_dict: Option<&[u8]>) -> Self {
         let has_preset = preset_dict.as_ref().map(|a| !a.is_empty()).unwrap_or(false);
         let lz = LZDecoder::new(get_dict_size(dict_size) as _, preset_dict);
         let rc = RangeDecoder::new_buffer(COMPRESSED_SIZE_MAX as _);

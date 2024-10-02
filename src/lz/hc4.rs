@@ -8,20 +8,20 @@ use crate::vec;
 
 pub struct HC4 {
     hash: Hash234,
-    chain: crate::Vec<i32>,
+    chain: crate::Vec<i64>,
     // matches: Matches,
-    depth_limit: i32,
-    cyclic_size: i32,
-    cyclic_pos: i32,
-    lz_pos: i32,
+    depth_limit: i64,
+    cyclic_size: i64,
+    cyclic_pos: i64,
+    lz_pos: i64,
 }
 
 impl HC4 {
-    pub fn get_mem_usage(dict_size: u32) -> u32 {
+    pub fn get_mem_usage(dict_size: u64) -> u64 {
         Hash234::get_mem_usage(dict_size) + dict_size / (1024 / 4) + 10
     }
 
-    pub fn new(dict_size: u32, nice_len: u32, depth_limit: i32) -> Self {
+    pub fn new(dict_size: u64, nice_len: u64, depth_limit: i64) -> Self {
         Self {
             hash: Hash234::new(dict_size),
             chain: vec![0; dict_size as usize + 1],
@@ -29,15 +29,15 @@ impl HC4 {
             depth_limit: if depth_limit > 0 {
                 depth_limit
             } else {
-                4 + nice_len as i32 / 4
+                4 + nice_len as i64 / 4
             },
-            cyclic_size: dict_size as i32 + 1,
+            cyclic_size: dict_size as i64 + 1,
             cyclic_pos: -1,
-            lz_pos: dict_size as i32 + 1,
+            lz_pos: dict_size as i64 + 1,
         }
     }
 
-    fn move_pos(&mut self, encoder: &mut LZEncoderData) -> i32 {
+    fn move_pos(&mut self, encoder: &mut LZEncoderData) -> i64 {
         let avail = encoder.move_pos(4, 4);
         if avail != 0 {
             self.lz_pos += 1;
@@ -65,8 +65,8 @@ impl MatchFind for HC4 {
         matches: &mut Matches,
     ) {
         matches.count = 0;
-        let mut match_len_limit = encoder.match_len_max as i32;
-        let mut nice_len_limit = encoder.nice_len as i32;
+        let mut match_len_limit = encoder.match_len_max as i64;
+        let mut nice_len_limit = encoder.nice_len as i64;
         let avail = self.move_pos(encoder);
 
         if avail < match_len_limit {
@@ -115,7 +115,7 @@ impl MatchFind for HC4 {
             }
 
             let count = matches.count as usize;
-            matches.len[count - 1] = len_best as u32;
+            matches.len[count - 1] = len_best as u64;
 
             // Return if it is long enough (niceLen or reached the end of
             // the dictionary).

@@ -22,9 +22,9 @@ pub const COMPRESSED_SIZE_MAX: usize = 1 << 16;
 ///
 impl<
         const DICT_SIZE: usize,
-        const LC: u32,
-        const LP: u32,
-        const PB: u32,
+        const LC: u64,
+        const LP: u64,
+        const PB: u64,
         const NUM_SUBDECODERS: usize,
         R: Read,
     > ErrorType for LZMA2Reader<DICT_SIZE, LC, LP, PB, NUM_SUBDECODERS, R>
@@ -35,9 +35,9 @@ where
 }
 pub struct LZMA2Reader<
     const DICT_SIZE: usize,
-    const LC: u32,
-    const LP: u32,
-    const PB: u32,
+    const LC: u64,
+    const LP: u64,
+    const PB: u64,
     const NUM_SUBDECODERS: usize,
     R: Read,
 > where
@@ -82,7 +82,7 @@ pub const fn get_dict_size<const DICT_SIZE: usize>() -> usize {
 }
 
 #[inline]
-pub const fn get_props_pb_lp_lc_num_subdecoders(props: u8) -> (u32, u32, u32, u32, u32) {
+pub const fn get_props_pb_lp_lc_num_subdecoders(props: u8) -> (u64, u64, u64, u64, u64) {
     if props > (4 * 5 + 4) * 9 + 8 {
         unreachable!()
     }
@@ -97,19 +97,19 @@ pub const fn get_props_pb_lp_lc_num_subdecoders(props: u8) -> (u32, u32, u32, u3
     let num_subdecoders = 1 << (lc + lp);
 
     (
-        props as u32,
-        pb as u32,
-        lp as u32,
-        lc as u32,
-        num_subdecoders as u32,
+        props as u64,
+        pb as u64,
+        lp as u64,
+        lc as u64,
+        num_subdecoders as u64,
     )
 }
 
 impl<
         const DICT_SIZE: usize,
-        const LC: u32,
-        const LP: u32,
-        const PB: u32,
+        const LC: u64,
+        const LP: u64,
+        const PB: u64,
         const NUM_SUBDECODERS: usize,
         R: Read + ErrorType,
     > LZMA2Reader<DICT_SIZE, LC, LP, PB, NUM_SUBDECODERS, R>
@@ -254,9 +254,9 @@ where
 
 impl<
         const DICT_SIZE: usize,
-        const LC: u32,
-        const LP: u32,
-        const PB: u32,
+        const LC: u64,
+        const LP: u64,
+        const PB: u64,
         const NUM_SUBDECODERS: usize,
         R: Read,
     > Read for LZMA2Reader<DICT_SIZE, LC, LP, PB, NUM_SUBDECODERS, R>

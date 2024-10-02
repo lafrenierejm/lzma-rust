@@ -6,9 +6,9 @@ use super::*;
 use core::ops::{Deref, DerefMut};
 
 pub struct LZMADecoder<
-    const LC: u32,
-    const LP: u32,
-    const PB: u32,
+    const LC: u64,
+    const LP: u64,
+    const PB: u64,
     const NUM_SUBDECODERS: usize,
     const DICT_SIZE: usize,
 > {
@@ -19,9 +19,9 @@ pub struct LZMADecoder<
 }
 
 impl<
-        const LC: u32,
-        const LP: u32,
-        const PB: u32,
+        const LC: u64,
+        const LP: u64,
+        const PB: u64,
         const NUM_SUBDECODERS: usize,
         const DICT_SIZE: usize,
     > Deref for LZMADecoder<LC, LP, PB, NUM_SUBDECODERS, DICT_SIZE>
@@ -33,9 +33,9 @@ impl<
     }
 }
 impl<
-        const LC: u32,
-        const LP: u32,
-        const PB: u32,
+        const LC: u64,
+        const LP: u64,
+        const PB: u64,
         const NUM_SUBDECODERS: usize,
         const DICT_SIZE: usize,
     > DerefMut for LZMADecoder<LC, LP, PB, NUM_SUBDECODERS, DICT_SIZE>
@@ -45,14 +45,14 @@ impl<
     }
 }
 
-pub const fn get_num_sub_decoders<const LC: u32, const LP: u32>() -> usize {
+pub const fn get_num_sub_decoders<const LC: u64, const LP: u64>() -> usize {
     (1 << (LC + LP)) as usize
 }
 
 impl<
-        const LC: u32,
-        const LP: u32,
-        const PB: u32,
+        const LC: u64,
+        const LP: u64,
+        const PB: u64,
         const NUM_SUBDECODERS: usize,
         const DICT_SIZE: usize,
     > LZMADecoder<LC, LP, PB, NUM_SUBDECODERS, DICT_SIZE>
@@ -96,7 +96,7 @@ impl<
     ) {
         lz.repeat_pending();
         while lz.has_space() {
-            let pos_state = lz.get_pos() as u32 & LZMACoder::<PB>::POS_MASK;
+            let pos_state = lz.get_pos() as u64 & LZMACoder::<PB>::POS_MASK;
             let i = self.coder.state.get() as usize;
             let probs = &mut self.is_match[i];
             let bit = rc.decode_bit(&mut probs[pos_state as usize]);
@@ -115,7 +115,7 @@ impl<
         rc.normalize();
     }
 
-    fn decode_match<R: RangeSource>(&mut self, pos_state: u32, rc: &mut RangeDecoder<R>) -> u32 {
+    fn decode_match<R: RangeSource>(&mut self, pos_state: u64, rc: &mut RangeDecoder<R>) -> u64 {
         self.state.update_match();
         self.reps[3] = self.reps[2];
         self.reps[2] = self.reps[1];
@@ -124,16 +124,16 @@ impl<
         let len = self.match_len_decoder.decode(pos_state as _, rc);
         let dist_slot = rc.decode_bit_tree(&mut self.dist_slots[coder_get_dict_size(len as _)]);
 
-        if dist_slot < DIST_MODEL_START as i32 {
+        if dist_slot < DIST_MODEL_START as i64 {
             self.reps[0] = dist_slot as _;
         } else {
             let limit = (dist_slot >> 1) - 1;
             self.reps[0] = (2 | (dist_slot & 1)) << limit;
-            if dist_slot < DIST_MODEL_END as i32 {
-                let probs = self.get_dist_special((dist_slot - DIST_MODEL_START as i32) as usize);
+            if dist_slot < DIST_MODEL_END as i64 {
+                let probs = self.get_dist_special((dist_slot - DIST_MODEL_START as i64) as usize);
                 self.reps[0] |= rc.decode_reverse_bit_tree(probs);
             } else {
-                let r0 = rc.decode_direct_bits(limit as u32 - ALIGN_BITS as u32) << ALIGN_BITS;
+                let r0 = rc.decode_direct_bits(limit as u64 - ALIGN_BITS as u64) << ALIGN_BITS;
                 self.reps[0] |= r0;
                 self.reps[0] |= rc.decode_reverse_bit_tree(&mut self.dist_align);
             }
@@ -144,9 +144,9 @@ impl<
 
     fn decode_rep_match<R: RangeSource>(
         &mut self,
-        pos_state: u32,
+        pos_state: u64,
         rc: &mut RangeDecoder<R>,
-    ) -> u32 {
+    ) -> u64 {
         let index = self.state.get() as usize;
         if rc.decode_bit(&mut self.is_rep0[index]) == 0 {
             let index: usize = self.coder.state.get() as usize;
@@ -173,13 +173,13 @@ impl<
         }
 
         self.state.update_long_rep();
-        self.rep_len_decoder.decode(pos_state as _, rc) as u32
+        self.rep_len_decoder.decode(pos_state as _, rc) as u64
     }
 }
 pub struct LiteralDecoder<
-    const LC: u32,
-    const LP: u32,
-    const PB: u32,
+    const LC: u64,
+    const LP: u64,
+    const PB: u64,
     const NUM_SUBDECODERS: usize,
     const DICT_SIZE: usize,
 > {
@@ -188,9 +188,9 @@ pub struct LiteralDecoder<
 }
 
 impl<
-        const LC: u32,
-        const LP: u32,
-        const PB: u32,
+        const LC: u64,
+        const LP: u64,
+        const PB: u64,
         const NUM_SUBDECODERS: usize,
         const DICT_SIZE: usize,
     > LiteralDecoder<LC, LP, PB, NUM_SUBDECODERS, DICT_SIZE>
@@ -228,11 +228,11 @@ impl<
 }
 
 #[derive(Clone, Copy)]
-struct LiteralSubdecoder<const DICT_SIZE: usize, const PB: u32> {
+struct LiteralSubdecoder<const DICT_SIZE: usize, const PB: u64> {
     coder: LiteralSubcoder,
 }
 
-impl<const DICT_SIZE: usize, const PB: u32> LiteralSubdecoder<DICT_SIZE, PB> {
+impl<const DICT_SIZE: usize, const PB: u64> LiteralSubdecoder<DICT_SIZE, PB> {
     const fn new() -> Self {
         Self {
             coder: LiteralSubcoder::new(),
@@ -244,11 +244,11 @@ impl<const DICT_SIZE: usize, const PB: u32> LiteralSubdecoder<DICT_SIZE, PB> {
         lz: &mut LZDecoder<DICT_SIZE>,
         rc: &mut RangeDecoder<R>,
     ) {
-        let mut symbol: u32 = 1;
+        let mut symbol: u64 = 1;
         let liter = coder.state.is_literal();
         if liter {
             loop {
-                let b = rc.decode_bit(&mut self.coder.probs[symbol as usize]) as u32;
+                let b = rc.decode_bit(&mut self.coder.probs[symbol as usize]) as u64;
                 symbol = (symbol << 1) | b;
                 if symbol >= 0x100 {
                     break;
@@ -256,7 +256,7 @@ impl<const DICT_SIZE: usize, const PB: u32> LiteralSubdecoder<DICT_SIZE, PB> {
             }
         } else {
             let r = coder.reps[0];
-            let mut match_byte = lz.get_byte(r as usize) as u32;
+            let mut match_byte = lz.get_byte(r as usize) as u64;
             let mut offset = 0x100;
             let mut match_bit;
             let mut bit;
@@ -265,9 +265,9 @@ impl<const DICT_SIZE: usize, const PB: u32> LiteralSubdecoder<DICT_SIZE, PB> {
                 match_byte <<= 1;
                 match_bit = match_byte & offset;
                 bit = rc.decode_bit(&mut self.coder.probs[(offset + match_bit + symbol) as usize])
-                    as u32;
+                    as u64;
                 symbol = (symbol << 1) | bit;
-                offset &= (0u32.wrapping_sub(bit)) ^ !match_bit;
+                offset &= (0u64.wrapping_sub(bit)) ^ !match_bit;
                 if symbol >= 0x100 {
                     break;
                 }
@@ -279,7 +279,7 @@ impl<const DICT_SIZE: usize, const PB: u32> LiteralSubdecoder<DICT_SIZE, PB> {
 }
 
 impl LengthCoder {
-    fn decode<R: RangeSource>(&mut self, pos_state: usize, rc: &mut RangeDecoder<R>) -> i32 {
+    fn decode<R: RangeSource>(&mut self, pos_state: usize, rc: &mut RangeDecoder<R>) -> i64 {
         if rc.decode_bit(&mut self.choice[0]) == 0 {
             return rc
                 .decode_bit_tree(&mut self.low[pos_state])
