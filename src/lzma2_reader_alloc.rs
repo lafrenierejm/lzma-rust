@@ -251,7 +251,7 @@ impl<R: Read> Read for LZMA2Reader<R> {
                 {
                     let error = e;
                     self.error = Some((error.kind(), error.to_string().to_string()));
-                    return error!(error.kind(), error.to_string());
+                    error!(error.kind(), error.to_string())
                 }
                 #[cfg(feature = "no_std")]
                 {

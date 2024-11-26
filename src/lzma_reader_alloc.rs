@@ -133,7 +133,7 @@ impl<R: Read> LZMAReader<R> {
         }
         let mut dict_size = get_dict_size(dict_size)?;
         if uncomp_size <= u64::MAX / 2 && dict_size as u64 > uncomp_size {
-            dict_size = get_dict_size(uncomp_size as u64)?;
+            dict_size = get_dict_size(uncomp_size)?;
         }
         let rc = RangeDecoder::new_stream(reader);
         let rc = match rc {
@@ -247,8 +247,8 @@ impl<R: Read> LZMAReader<R> {
         let mut off = 0u64;
         while len > 0 {
             let mut copy_size_max = len;
-            if self.remaining_size <= u64::MAX / 2 && (self.remaining_size as u64) < len {
-                copy_size_max = self.remaining_size as u64;
+            if self.remaining_size <= u64::MAX / 2 && self.remaining_size < len {
+                copy_size_max = self.remaining_size;
             }
             self.lz.set_limit(copy_size_max as usize);
 
@@ -268,7 +268,7 @@ impl<R: Read> LZMAReader<R> {
             len -= copied_size;
             size += copied_size;
             if self.remaining_size <= u64::MAX / 2 {
-                self.remaining_size -= copied_size as u64;
+                self.remaining_size -= copied_size;
                 if self.remaining_size == 0 {
                     self.end_reached = true;
                 }

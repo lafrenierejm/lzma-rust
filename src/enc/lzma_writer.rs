@@ -153,7 +153,7 @@ impl<W: Write> Write for LZMAWriter<W> {
         }
         if buf.is_empty() {
             self.finish()?;
-            self.rc.inner().write(buf)?;
+            self.rc.inner().write_all(buf)?;
             return Ok(0);
         }
         if let Some(exp) = self.expected_uncompressed_size {

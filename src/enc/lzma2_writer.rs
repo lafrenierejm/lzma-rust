@@ -328,7 +328,7 @@ impl<W: Write> Write for LZMA2Writer<W> {
         let mut len = buf.len();
         if len == 0 && !self.finished {
             self.finish()?;
-            self.inner.write(buf)?;
+            self.inner.write_all(buf)?;
             return Ok(0);
         }
         if self.finished {
