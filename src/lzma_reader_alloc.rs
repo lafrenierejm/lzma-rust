@@ -39,9 +39,9 @@ fn get_dict_size(dict_size: u64) -> Result<u64> {
 /// use std::io::Read;
 /// use lzma_rust::LZMAReader;
 /// let compressed = [93, 0, 0, 128, 0, 255, 255, 255, 255, 255, 255, 255, 255, 0, 36, 25, 73, 152, 111, 22, 2, 140, 232, 230, 91, 177, 71, 198, 206, 183, 99, 255, 255, 60, 172, 0, 0];
-/// let mut reader = LZMAReader::new(&compressed[..]).unwrap();
+/// let mut reader = LZMAReader::new(&compressed[..], 0, 0, 0, 0, 0, None).unwrap();
 /// let mut buf = [0; 1024];
-/// let mut out = crate::Vec::new();
+/// let mut out = Vec::new();
 /// loop {
 ///    let n = reader.read(&mut buf).unwrap();
 ///   if n == 0 {
