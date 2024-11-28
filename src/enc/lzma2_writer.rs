@@ -261,7 +261,7 @@ impl<W: Write> LZMA2Writer<W> {
             Err(_e) => {
                 return error!(
                     write_error_kind!(W, ErrorKind::InvalidData),
-                    "Faild to finish RC buffer!"
+                    "Failed to finish RC buffer!"
                 )
             }
         }
