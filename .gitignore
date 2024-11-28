@@ -1,4 +1,4 @@
-/target
-/Cargo.lock
-/data
 .DS_Store
+/.pre-commit-config.yaml
+/data
+/target
